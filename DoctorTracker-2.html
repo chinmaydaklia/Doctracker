@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0F1824">
+<title>Dr. Daklia — Tracker</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{background:#0F1824;color:#E2EAF4;font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;min-height:100vh}
+input,select,button{font-family:inherit}
+
+/* Screens */
+.pg{display:none;padding:16px 16px 80px;min-height:100vh}
+.pg.on{display:block}
+
+/* Nav */
+#nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:#162030;border-top:1px solid #243447;display:flex;z-index:999}
+.nb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:none;background:none;color:#64748B;font-size:9px;padding:8px 2px 10px;cursor:pointer}
+.nb.on{color:#0EA5BD;font-weight:700}
+
+/* Cards */
+.card{background:#1C2A3A;border:1px solid #243447;border-radius:12px;padding:16px;margin-bottom:12px}
+.hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.ttl{font-size:18px;font-weight:700}
+
+/* Inputs */
+.fld{margin-bottom:12px}
+.fld label{display:block;font-size:12px;color:#94A3B8;margin-bottom:4px}
+.fld input,.fld select{width:100%;background:#162030;border:1px solid #243447;border-radius:8px;padding:10px 12px;color:#E2EAF4;font-size:14px;outline:none}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+/* Buttons */
+.btn{border-radius:8px;padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;border:none;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn.p{background:#0EA5BD;color:#fff}
+.btn.g{background:transparent;color:#0EA5BD;border:1px solid #0EA5BD}
+.btn.d{background:rgba(239,68,68,.13);color:#EF4444;border:1px solid rgba(239,68,68,.27)}
+.btn.a{background:#F59E0B;color:#000}
+.btn.sm{padding:6px 12px;font-size:12px}
+.btn.full{width:100%}
+
+/* Stat cards */
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.sc{background:#1C2A3A;border:1px solid #243447;border-radius:12px;padding:14px}
+.sc .lb{font-size:11px;color:#94A3B8;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.sc .vl{font-size:22px;font-weight:700}
+
+/* Round toggle */
+.rtog{display:flex;gap:6px;margin-bottom:12px}
+.ro{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 4px;border-radius:10px;border:2px solid #243447;background:transparent;cursor:pointer;font-size:11px;font-weight:600;color:#64748B}
+.ro.rm{border-color:#F59E0B;background:rgba(245,158,11,.1);color:#F59E0B}
+.ro.re{border-color:#8B5CF6;background:rgba(139,92,246,.1);color:#8B5CF6}
+.ro.rb{border-color:#0EA5BD;background:rgba(14,165,189,.1);color:#0EA5BD}
+
+/* Cons panel */
+.cpanel{background:#162030;border-radius:10px;padding:12px;margin-bottom:8px}
+.cpanel.m{border:1px solid rgba(245,158,11,.3)}
+.cpanel.e{border:1px solid rgba(139,92,246,.3)}
+.crow{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.crow .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.crow .lbl{flex:1;font-size:13px}
+.crow input{background:#1C2A3A;border:1px solid #243447;border-radius:8px;color:#E2EAF4;font-size:14px;outline:none;padding:8px 6px;text-align:center}
+.crow .cn{width:52px}
+.crow .rt{width:66px}
+.crow .rv{font-size:11px;color:#0EA5BD;min-width:56px;text-align:right}
+
+/* Hospital pills */
+.pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.pill{padding:8px 14px;border-radius:20px;font-size:13px;cursor:pointer;border:1.5px solid #243447;background:transparent;color:#94A3B8}
+.pill.on{border-color:#0EA5BD;background:rgba(14,165,189,.13);color:#0EA5BD;font-weight:700}
+
+/* Chips */
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.chip{padding:5px 10px;border-radius:16px;font-size:11px;cursor:pointer;border:1px solid #0EA5BD;background:transparent;color:#0EA5BD}
+
+/* Summary */
+.sumbox{background:rgba(14,165,189,.07);border:1px solid rgba(14,165,189,.27);border-radius:10px;padding:14px;margin-bottom:12px}
+.sumrow{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px}
+.sumrow.tot{border-top:1px solid #243447;padding-top:8px;margin-top:4px}
+
+/* Bar chart */
+.bars{display:flex;align-items:flex-end;gap:3px;height:80px}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
+.bar{width:100%;background:#0EA5BD;border-radius:3px 3px 0 0}
+.bar-l{font-size:9px;color:#64748B}
+
+/* Admission list item */
+.adm-item{background:#1C2A3A;border:1px solid #243447;border-radius:10px;padding:14px;margin-bottom:8px;border-left:3px solid #0EA5BD}
+
+/* Alert */
+.alert{background:rgba(34,197,94,.13);border:1px solid rgba(34,197,94,.27);border-radius:8px;padding:10px 14px;color:#22C55E;font-size:13px;margin-bottom:12px;display:none}
+
+/* Badge */
+.bdg{border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600}
+</style>
+</head>
+<body>
+
+<!-- DASHBOARD -->
+<div id="pg-dash" class="pg on">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <div>
+      <div style="font-size:11px;color:#64748B;text-transform:uppercase;letter-spacing:1px">Practice Tracker</div>
+      <div style="font-size:20px;font-weight:700">Dr. Chinmay Daklia</div>
+    </div>
+    <div style="width:38px;height:38px;border-radius:50%;background:rgba(14,165,189,.13);display:flex;align-items:center;justify-content:center;font-weight:700;color:#0EA5BD">CD</div>
+  </div>
+  <div style="background:linear-gradient(135deg,rgba(14,165,189,.13),#162030);border:1px solid rgba(14,165,189,.3);border-radius:14px;padding:16px;margin-bottom:14px">
+    <div style="font-size:11px;color:#0EA5BD;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Today</div>
+    <div id="d-gross" style="font-size:28px;font-weight:800">₹0</div>
+    <div style="font-size:12px;color:#94A3B8;margin-top:4px">Net: <span id="d-net" style="color:#22C55E">₹0</span> &nbsp; Exp: <span id="d-exp" style="color:#EF4444">₹0</span></div>
+    <div id="d-cats" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:12px"></div>
+  </div>
+  <button class="btn p full" onclick="goTo('entry')" style="margin-bottom:14px">+ New Daily Entry</button>
+  <div id="d-pend" style="display:none" class="card" style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div><div style="font-size:11px;color:#F59E0B;text-transform:uppercase">Pending Payments</div><div id="d-pend-amt" style="font-size:20px;font-weight:700;color:#F59E0B"></div></div>
+      <button class="btn a sm" onclick="goTo('pay')">View</button>
+    </div>
+  </div>
+  <div class="fld"><select id="d-mon" onchange="renderDash()" style="width:100%;background:#1C2A3A;border:1px solid #243447;border-radius:8px;padding:10px 12px;color:#E2EAF4;font-size:14px;outline:none;margin-bottom:8px"></select></div>
+  <div class="stats" id="d-stats"></div>
+  <div class="card"><div style="font-size:12px;color:#94A3B8;margin-bottom:10px">Last 7 Days</div><div class="bars" id="d-bars"></div></div>
+</div>
+
+<!-- ENTRY -->
+<div id="pg-entry" class="pg">
+  <div class="hdr"><div class="ttl" id="e-title">New Entry</div><button class="btn g sm" onclick="goTo('hist')">History</button></div>
+  <div class="alert" id="e-saved">✓ Saved!</div>
+
+  <!-- Manage hospitals -->
+  <div id="mhpanel" style="display:none" class="card" style="margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:700">Manage Hospitals</div>
+      <button class="btn g sm" onclick="toggleMH()">Done</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <input id="nh-inp" placeholder="Hospital name..." onkeydown="if(event.key==='Enter')addH()" style="flex:1;background:#162030;border:1px solid #243447;border-radius:8px;padding:10px 12px;color:#E2EAF4;font-size:13px;outline:none">
+      <button class="btn p sm" onclick="addH()">Add</button>
+    </div>
+    <div id="mh-list"></div>
+  </div>
+
+  <div class="card">
+    <div class="fld"><label>Date</label><input type="date" id="e-date"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <label style="font-size:12px;color:#94A3B8">Hospital</label>
+      <button class="btn g sm" onclick="toggleMH()">⚙ Manage</button>
+    </div>
+    <div class="pills" id="e-pills"></div>
+  </div>
+
+  <div class="card">
+    <div style="font-size:12px;color:#94A3B8;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Round Type</div>
+    <div class="rtog">
+      <button class="ro" id="ro-m" onclick="setRT('morning')">☀️ Morning</button>
+      <button class="ro" id="ro-e" onclick="setRT('evening')">🌙 Evening</button>
+      <button class="ro" id="ro-b" onclick="setRT('both')">🔄 Both</button>
+    </div>
+    <div id="mpanel"></div>
+    <div id="epanel"></div>
+    <div id="combbox" style="display:none;background:rgba(14,165,189,.07);border:1px solid rgba(14,165,189,.2);border-radius:10px;padding:10px;margin-top:8px">
+      <div style="font-size:11px;font-weight:700;color:#0EA5BD;margin-bottom:8px">Combined Total</div>
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+        <div style="display:flex;flex-direction:column;align-items:center"><span id="cb-icu" style="font-size:18px;font-weight:700;color:#0EA5BD">0</span><span style="font-size:10px;color:#64748B">ICU</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center"><span id="cb-pvt" style="font-size:18px;font-weight:700;color:#8B5CF6">0</span><span style="font-size:10px;color:#64748B">Pvt</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center"><span id="cb-ward" style="font-size:18px;font-weight:700;color:#22C55E">0</span><span style="font-size:10px;color:#64748B">Ward</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center"><span id="cb-opd" style="font-size:18px;font-weight:700;color:#F59E0B">0</span><span style="font-size:10px;color:#64748B">OPD</span></div>
+        <div style="margin-left:auto;text-align:right"><div id="cb-rev" style="font-weight:700;color:#0EA5BD">₹0</div><div id="cb-pts" style="font-size:11px;color:#64748B">0 pts</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="font-size:12px;color:#94A3B8;text-transform:uppercase;letter-spacing:1px">Procedures</div>
+      <button class="btn g sm" onclick="addProc('')">+ Add</button>
+    </div>
+    <div class="chips">
+      <button class="chip" onclick="addProc('Echo')">Echo</button>
+      <button class="chip" onclick="addProc('TMT')">TMT</button>
+      <button class="chip" onclick="addProc('USG')">USG</button>
+      <button class="chip" onclick="addProc('Med Cert')">Med Cert</button>
+      <button class="chip" onclick="addProc('Procedure')">Procedure</button>
+    </div>
+    <div id="proc-list"></div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="font-size:12px;color:#94A3B8;text-transform:uppercase;letter-spacing:1px">Expenses</div>
+      <button class="btn g sm" onclick="addExp('Fuel')">+ Add</button>
+    </div>
+    <div class="chips">
+      <button class="chip" onclick="addExp('Fuel')">Fuel</button>
+      <button class="chip" onclick="addExp('Food')">Food</button>
+      <button class="chip" onclick="addExp('Travel')">Travel</button>
+      <button class="chip" onclick="addExp('Assistant')">Assistant</button>
+      <button class="chip" onclick="addExp('Misc')">Misc</button>
+    </div>
+    <div id="exp-list"></div>
+  </div>
+
+  <div class="sumbox">
+    <div class="sumrow"><span style="color:#94A3B8">Gross</span><span id="s-g" style="color:#0EA5BD;font-weight:700">₹0</span></div>
+    <div class="sumrow"><span style="color:#94A3B8">Expenses</span><span id="s-e" style="color:#EF4444;font-weight:700">₹0</span></div>
+    <div class="sumrow tot"><span style="font-weight:600">Net</span><span id="s-n" style="color:#22C55E;font-weight:800;font-size:16px">₹0</span></div>
+  </div>
+  <button class="btn p full" id="e-savebtn" onclick="saveEntry()">✓ Save Entry</button>
+  <button class="btn g full" id="e-cancelbtn" onclick="cancelEdit()" style="display:none;margin-top:8px">Cancel Edit</button>
+</div>
+
+<!-- HISTORY -->
+<div id="pg-hist" class="pg">
+  <div class="hdr"><div class="ttl">History</div><button class="btn g sm" onclick="goTo('entry')">← Back</button></div>
+  <div id="hist-list"></div>
+</div>
+
+<!-- REPORTS -->
+<div id="pg-rep" class="pg">
+  <div class="hdr"><div class="ttl">Reports</div><button class="btn g sm" onclick="expCSV()">⬇ CSV</button></div>
+  <select id="r-mon" onchange="renderRep()" style="width:100%;background:#1C2A3A;border:1px solid #243447;border-radius:8px;padding:10px 12px;color:#E2EAF4;font-size:14px;outline:none;margin-bottom:12px"></select>
+  <div style="display:flex;gap:6px;margin-bottom:14px">
+    <button class="btn p sm" id="vt-m" onclick="setView('m')">Monthly</button>
+    <button class="btn g sm" id="vt-d" onclick="setView('d')">Daily</button>
+    <button class="btn g sm" id="vt-h" onclick="setView('h')">Hospital</button>
+  </div>
+  <div id="rep-body"></div>
+</div>
+
+<!-- HOSPITAL REPORT -->
+<div id="pg-hrep" class="pg">
+  <div class="hdr">
+    <div><div class="ttl">Hospital Report</div><div style="font-size:12px;color:#64748B">Patient counts for submission</div></div>
+  </div>
+  <div class="card">
+    <div class="fld"><label>Hospital</label><select id="hr-h" onchange="renderHR()" style="width:100%;background:#162030;border:1px solid #243447;border-radius:8px;padding:10px 12px;color:#E2EAF4;font-size:14px;outline:none"></select></div>
+    <div class="fld" style="margin-bottom:0"><label>Month</label><select id="hr-m" onchange="renderHR()" style="width:100%;background:#162030;border:1px solid #243447;border-radius:8px;padding:10px 12px;color:#E2EAF4;font-size:14px;outline:none"></select></div>
+  </div>
+  <div id="hr-body"></div>
+</div>
+
+<!-- ADMISSIONS -->
+<div id="pg-adm" class="pg">
+  <div class="hdr"><div class="ttl">Admissions</div><button class="btn p sm" onclick="toggleAdmForm()">+ Add</button></div>
+  <div id="adm-form" style="display:none" class="card">
+    <div style="font-size:13px;font-weight:700;margin-bottom:12px" id="af-title">New Admission</div>
+    <div class="fld"><label>Patient Name</label><input type="text" id="af-name" placeholder="e.g. Ramesh Kumar"></div>
+    <div class="row2">
+      <div class="fld"><label>Date</label><input type="date" id="af-date"></div>
+      <div class="fld"><label>Hospital</label><select id="af-hosp" style="width:100%;background:#162030;border:1px solid #243447;border-radius:8px;padding:10px 10px;color:#E2EAF4;font-size:13px;outline:none"></select></div>
+    </div>
+    <div class="fld"><label>Ward / Bed (optional)</label><input type="text" id="af-ward" placeholder="e.g. ICU Bed 2"></div>
+    <div class="fld"><label>Diagnosis / Notes (optional)</label><input type="text" id="af-notes" placeholder="e.g. Dengue"></div>
+    <input type="hidden" id="af-id">
+    <div style="display:flex;gap:8px">
+      <button class="btn p" style="flex:1" onclick="saveAdm()">Save</button>
+      <button class="btn g" style="flex:1" onclick="toggleAdmForm()">Cancel</button>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:12px">
+    <input type="text" id="adm-srch" placeholder="Search patient..." oninput="renderAdm()" style="flex:1;background:#1C2A3A;border:1px solid #243447;border-radius:8px;padding:10px 12px;color:#E2EAF4;font-size:14px;outline:none">
+    <select id="adm-fh" onchange="renderAdm()" style="background:#1C2A3A;border:1px solid #243447;border-radius:8px;padding:10px 8px;color:#E2EAF4;font-size:12px;outline:none;max-width:120px">
+      <option value="">All</option>
+    </select>
+  </div>
+  <div class="stats">
+    <div class="sc"><div class="lb">Total</div><div class="vl" id="adm-tot" style="color:#0EA5BD">0</div></div>
+    <div class="sc"><div class="lb">This Month</div><div class="vl" id="adm-mon" style="color:#8B5CF6">0</div></div>
+  </div>
+  <div id="adm-list"></div>
+</div>
+
+<!-- PAYMENTS -->
+<div id="pg-pay" class="pg">
+  <div class="hdr"><div class="ttl">Payments</div><button class="btn p sm" onclick="togglePayForm()">+ Add</button></div>
+  <div class="stats" id="pay-stats"></div>
+  <div id="pay-form" style="display:none" class="card">
+    <div style="font-size:13px;font-weight:700;margin-bottom:12px">Payment Record</div>
+    <div class="fld"><label>Hospital</label><select id="pf-h" style="width:100%;background:#162030;border:1px solid #243447;border-radius:8px;padding:10px 12px;color:#E2EAF4;font-size:14px;outline:none"></select></div>
+    <div class="fld"><label>Month</label><input type="month" id="pf-mon" style="width:100%;background:#162030;border:1px solid #243447;border-radius:8px;padding:10px 12px;color:#E2EAF4;font-size:14px;outline:none"></div>
+    <div class="row2">
+      <div class="fld"><label>Expected (₹)</label><input type="number" id="pf-exp" value="0"></div>
+      <div class="fld"><label>Received (₹)</label><input type="number" id="pf-rec" value="0"></div>
+    </div>
+    <div class="fld"><label>Notes</label><input type="text" id="pf-notes" placeholder="Optional"></div>
+    <div style="background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:10px;margin-bottom:12px">
+      <div style="font-size:11px;color:#F59E0B;font-weight:600;margin-bottom:8px">Min Guarantee + Revenue Share</div>
+      <div class="row2">
+        <div class="fld"><label>Min Guarantee (₹)</label><input type="number" id="pf-mg" value="0" oninput="calcSal()"></div>
+        <div class="fld"><label>Share %</label><input type="number" id="pf-rs" value="0" oninput="calcSal()"></div>
+      </div>
+      <div id="pf-sal" style="font-size:12px;color:#F59E0B;display:none"></div>
+    </div>
+    <input type="hidden" id="pf-id">
+    <div style="display:flex;gap:8px">
+      <button class="btn p" style="flex:1" onclick="savePay()">Save</button>
+      <button class="btn g" style="flex:1" onclick="togglePayForm()">Cancel</button>
+    </div>
+  </div>
+  <div id="pay-list"></div>
+</div>
+
+<!-- NAV -->
+<nav id="nav">
+  <button class="nb on" id="nb-dash" onclick="goTo('dash')">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    Home
+  </button>
+  <button class="nb" id="nb-entry" onclick="goTo('entry')">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    Entry
+  </button>
+  <button class="nb" id="nb-rep" onclick="goTo('rep')">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    Reports
+  </button>
+  <button class="nb" id="nb-hrep" onclick="goTo('hrep')">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    Hosp Rpt
+  </button>
+  <button class="nb" id="nb-adm" onclick="goTo('adm')">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+    Admits
+  </button>
+  <button class="nb" id="nb-pay" onclick="goTo('pay')">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+    Payments
+  </button>
+</nav>
+
+<script>
+// ── Storage ────────────────────────────────────────────
+var S = {
+  g: function(k,d){ try{ var v=localStorage.getItem(k); return v===null?d:JSON.parse(v); }catch(e){ return d; } },
+  s: function(k,v){ localStorage.setItem(k,JSON.stringify(v)); }
+};
+
+// ── State ──────────────────────────────────────────────
+var hospitals = S.g('hosp', ['Arihant Hospital','City Medical Center','Dongargarh CHC','Rajnandgaon District Hospital','Peripheral Camp']);
+var entries   = S.g('ent3', []);
+var payments  = S.g('pays', []);
+var admissions= S.g('adms', []);
+
+function saveAll(){
+  S.s('hosp', hospitals);
+  S.s('ent3', entries);
+  S.s('pays', payments);
+  S.s('adms', admissions);
+}
+
+// ── Utils ──────────────────────────────────────────────
+function fmt(n){ return new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(n||0); }
+function today(){ return new Date().toISOString().slice(0,10); }
+function uid(){ return Math.random().toString(36).slice(2,9); }
+function dFmt(d){ var dt=new Date(d+'T00:00:00'); return dt.getDate()+'.'+(dt.getMonth()+1)+'.'+String(dt.getFullYear()).slice(2); }
+function dFull(d){ var dt=new Date(d+'T00:00:00'); return dt.toLocaleDateString('en-IN',{day:'numeric',month:'short',weekday:'short'}); }
+function genMonths(){
+  var arr=[];
+  for(var i=0;i<12;i++){
+    var d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-i);
+    arr.push({v:d.toISOString().slice(0,7), l:d.toLocaleDateString('en-IN',{month:'long',year:'numeric'})});
+  }
+  return arr;
+}
+
+// ── Navigation ─────────────────────────────────────────
+var pages = ['dash','entry','hist','rep','hrep','adm','pay'];
+var navIds = ['dash','entry','rep','hrep','adm','pay'];
+var curPage = 'dash';
+
+function goTo(p){
+  pages.forEach(function(id){
+    var el=document.getElementById('pg-'+id);
+    if(el) el.classList.remove('on');
+  });
+  navIds.forEach(function(id){
+    var nb=document.getElementById('nb-'+id);
+    if(nb) nb.classList.remove('on');
+  });
+  var pg=document.getElementById('pg-'+p);
+  if(pg) pg.classList.add('on');
+  var nb=document.getElementById('nb-'+p);
+  if(nb) nb.classList.add('on');
+  curPage=p;
+  if(p==='dash') renderDash();
+  if(p==='entry') renderEntry();
+  if(p==='hist') renderHist();
+  if(p==='rep') renderRep();
+  if(p==='hrep') renderHR();
+  if(p==='adm') renderAdm();
+  if(p==='pay') renderPay();
+}
+
+// ── Round helpers ──────────────────────────────────────
+function blankR(){ return {icu:{c:0,r:400},pvt:{c:0,r:300},ward:{c:0,r:200},opd:{c:0,r:150,inc:true}}; }
+function rRev(r){ return r.icu.c*r.icu.r + r.pvt.c*r.pvt.r + r.ward.c*r.ward.r + (r.opd.inc?r.opd.c*r.opd.r:0); }
+function rPts(r){ return r.icu.c+r.pvt.c+r.ward.c+r.opd.c; }
+function mergeR(a,b){ return {icu:{c:a.icu.c+b.icu.c,r:a.icu.r},pvt:{c:a.pvt.c+b.pvt.c,r:a.pvt.r},ward:{c:a.ward.c+b.ward.c,r:a.ward.r},opd:{c:a.opd.c+b.opd.c,r:a.opd.r,inc:a.opd.inc}}; }
+function getEff(e){
+  if(e.rt==='morning') return e.morning;
+  if(e.rt==='evening') return e.evening;
+  return mergeR(e.morning,e.evening);
+}
+function sumE(e){
+  var eff=getEff(e);
+  var g=rRev(eff)+(e.procs||[]).reduce(function(s,p){return s+p.c*p.r;},0);
+  var ex=(e.exps||[]).reduce(function(s,x){return s+x.amt;},0);
+  return {gross:g,exp:ex,net:g-ex};
+}
+function totOf(arr){
+  return arr.reduce(function(acc,e){
+    var s=sumE(e); var eff=getEff(e);
+    return {gross:acc.gross+s.gross,exp:acc.exp+s.exp,net:acc.net+s.net,icu:acc.icu+eff.icu.c,pvt:acc.pvt+eff.pvt.c,ward:acc.ward+eff.ward.c,opd:acc.opd+eff.opd.c};
+  },{gross:0,exp:0,net:0,icu:0,pvt:0,ward:0,opd:0});
+}
+
+// ── Entry form state ───────────────────────────────────
+var eForm = {id:null,date:today(),hosp:hospitals[0]||'',rt:'both',morning:blankR(),evening:blankR(),procs:[],exps:[]};
+var editId = null;
+
+function renderEntry(){
+  document.getElementById('e-date').value = eForm.date;
+  renderPills();
+  renderMHList();
+  setRT(eForm.rt);
+  renderProcs();
+  renderExps();
+  updateSum();
+}
+
+// Hospital management
+var mhOpen=false;
+function toggleMH(){
+  mhOpen=!mhOpen;
+  document.getElementById('mhpanel').style.display=mhOpen?'block':'none';
+  renderMHList();
+}
+function renderMHList(){
+  var el=document.getElementById('mh-list');
+  if(!el) return;
+  if(hospitals.length===0){el.innerHTML='<div style="color:#64748B;font-size:13px;text-align:center;padding:8px">No hospitals yet.</div>';return;}
+  el.innerHTML=hospitals.map(function(h){
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#162030;border-radius:8px;margin-bottom:6px;border:1px solid '+(h===eForm.hosp?'#0EA5BD':'#243447')+'">'
+      +'<span style="font-size:13px;color:'+(h===eForm.hosp?'#0EA5BD':'#E2EAF4')+'">'+h+'</span>'
+      +'<button class="btn d sm" onclick="removeH(\''+h.replace(/'/g,"\\'")+'\')" style="padding:4px 10px;font-size:11px">✕</button>'
+      +'</div>';
+  }).join('');
+}
+function addH(){
+  var inp=document.getElementById('nh-inp');
+  var n=inp.value.trim();
+  if(n && hospitals.indexOf(n)===-1){ hospitals.push(n); saveAll(); }
+  inp.value='';
+  renderPills(); renderMHList(); updateHospSelects();
+}
+function removeH(h){
+  hospitals=hospitals.filter(function(x){return x!==h;});
+  if(eForm.hosp===h) eForm.hosp=hospitals[0]||'';
+  saveAll(); renderPills(); renderMHList(); updateHospSelects();
+}
+function renderPills(){
+  var el=document.getElementById('e-pills');
+  if(!el) return;
+  if(hospitals.length===0){el.innerHTML='<div style="font-size:13px;color:#64748B">No hospitals. Tap Manage to add.</div>';return;}
+  el.innerHTML=hospitals.map(function(h){
+    return '<button class="pill'+(h===eForm.hosp?' on':'')+'" onclick="selH(\''+h.replace(/'/g,"\\'")+'\')">' +h+'</button>';
+  }).join('');
+}
+function selH(h){ eForm.hosp=h; renderPills(); }
+function updateHospSelects(){
+  ['hr-h','af-hosp','pf-h'].forEach(function(id){
+    var s=document.getElementById(id);
+    if(s) s.innerHTML=hospitals.map(function(h){return '<option value="'+h+'">'+h+'</option>';}).join('');
+  });
+  var fh=document.getElementById('adm-fh');
+  if(fh){
+    var cur=fh.value;
+    fh.innerHTML='<option value="">All</option>'+hospitals.map(function(h){return '<option value="'+h+'"'+(h===cur?' selected':'')+'>'+h+'</option>';}).join('');
+  }
+}
+
+// Round type
+var curRT='both';
+function setRT(rt){
+  curRT=rt; eForm.rt=rt;
+  ['m','e','b'].forEach(function(x){ document.getElementById('ro-'+x).className='ro'; });
+  if(rt==='morning') document.getElementById('ro-m').className='ro rm';
+  if(rt==='evening') document.getElementById('ro-e').className='ro re';
+  if(rt==='both')    document.getElementById('ro-b').className='ro rb';
+  document.getElementById('mpanel').style.display=(rt==='morning'||rt==='both')?'block':'none';
+  document.getElementById('epanel').style.display=(rt==='evening'||rt==='both')?'block':'none';
+  document.getElementById('combbox').style.display=(rt==='both')?'block':'none';
+  renderConsRows();
+}
+
+var CATS=[{k:'icu',l:'ICU',c:'#0EA5BD'},{k:'pvt',l:'Private',c:'#8B5CF6'},{k:'ward',l:'Ward',c:'#22C55E'},{k:'opd',l:'OPD',c:'#F59E0B'}];
+
+function consPanel(rk){
+  var isM=(rk==='morning');
+  var color=isM?'#F59E0B':'#8B5CF6';
+  var label=isM?'Morning':'Evening';
+  var cls=isM?'cpanel m':'cpanel e';
+  var rows=CATS.map(function(cat){
+    var r=eForm[rk][cat.k];
+    var revVal=(cat.k==='opd')?(r.inc?r.c*r.r:0):r.c*r.r;
+    return '<div class="crow">'
+      +'<div class="dot" style="background:'+cat.c+'"></div>'
+      +'<span class="lbl">'+cat.l+'</span>'
+      +'<input type="number" class="cn" min="0" value="'+r.c+'" onchange="updC(\''+rk+'\',\''+cat.k+'\',\'c\',this.value)">'
+      +'<span style="color:#64748B;font-size:11px">x</span>'
+      +'<input type="number" class="rt" min="0" value="'+r.r+'" onchange="updC(\''+rk+'\',\''+cat.k+'\',\'r\',this.value)">'
+      +'<span class="rv" id="'+rk+'-'+cat.k+'-rv">'+fmt(revVal)+'</span>'
+      +'</div>'
+      +(cat.k==='opd'?'<label style="display:flex;align-items:center;gap:8px;font-size:11px;color:#94A3B8;cursor:pointer;margin-bottom:4px"><input type="checkbox"'+(r.inc?' checked':'')+' onchange="updCChk(\''+rk+'\',this.checked)"> Include OPD in revenue</label>':'');
+  }).join('');
+  return '<div class="'+cls+'">'
+    +'<div style="font-size:11px;font-weight:700;color:'+color+';text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">'+(isM?'☀️':'🌙')+' '+label+' Round</div>'
+    +rows
+    +'<div style="border-top:1px solid #243447;padding-top:8px;margin-top:4px;display:flex;justify-content:space-between;font-size:12px">'
+    +'<span style="color:#94A3B8">Subtotal</span><span id="'+rk+'-sub" style="font-weight:700;color:'+color+'">'+fmt(rRev(eForm[rk]))+'</span></div>'
+    +'<div style="display:flex;justify-content:space-between;font-size:11px;margin-top:4px"><span style="color:#64748B">Patients</span><span id="'+rk+'-pts" style="color:#94A3B8">'+rPts(eForm[rk])+'</span></div>'
+    +'</div>';
+}
+
+function renderConsRows(){
+  document.getElementById('mpanel').innerHTML=consPanel('morning');
+  document.getElementById('epanel').innerHTML=consPanel('evening');
+  updateCalcs();
+}
+
+function updC(rk,cat,field,val){
+  eForm[rk][cat][field]=Number(val);
+  updateCalcs();
+}
+function updCChk(rk,val){
+  eForm[rk]['opd']['inc']=val;
+  updateCalcs();
+}
+function updateCalcs(){
+  ['morning','evening'].forEach(function(rk){
+    CATS.forEach(function(cat){
+      var el=document.getElementById(rk+'-'+cat.k+'-rv');
+      if(el){
+        var r=eForm[rk][cat.k];
+        el.textContent=fmt(cat.k==='opd'?(r.inc?r.c*r.r:0):r.c*r.r);
+      }
+    });
+    var sub=document.getElementById(rk+'-sub');
+    var pts=document.getElementById(rk+'-pts');
+    if(sub) sub.textContent=fmt(rRev(eForm[rk]));
+    if(pts) pts.textContent=rPts(eForm[rk]);
+  });
+  if(eForm.rt==='both'){
+    var m=mergeR(eForm.morning,eForm.evening);
+    document.getElementById('cb-icu').textContent=m.icu.c;
+    document.getElementById('cb-pvt').textContent=m.pvt.c;
+    document.getElementById('cb-ward').textContent=m.ward.c;
+    document.getElementById('cb-opd').textContent=m.opd.c;
+    document.getElementById('cb-rev').textContent=fmt(rRev(m));
+    document.getElementById('cb-pts').textContent=rPts(m)+' pts';
+  }
+  updateSum();
+}
+
+// Procedures
+function addProc(name){
+  eForm.procs.push({id:uid(),name:name,c:1,r:500});
+  renderProcs();
+}
+function renderProcs(){
+  var el=document.getElementById('proc-list');
+  el.innerHTML=eForm.procs.map(function(p,i){
+    return '<div style="display:flex;gap:6px;align-items:center;margin-top:8px">'
+      +'<input value="'+p.name+'" placeholder="Name" onchange="eForm.procs['+i+'].name=this.value" style="flex:2;background:#162030;border:1px solid #243447;border-radius:8px;padding:8px 10px;color:#E2EAF4;font-size:13px;outline:none">'
+      +'<input type="number" min="0" value="'+p.c+'" onchange="eForm.procs['+i+'].c=+this.value;updateSum()" style="width:48px;background:#162030;border:1px solid #243447;border-radius:8px;padding:8px 6px;color:#E2EAF4;font-size:13px;outline:none;text-align:center">'
+      +'<input type="number" min="0" value="'+p.r+'" onchange="eForm.procs['+i+'].r=+this.value;updateSum()" style="width:68px;background:#162030;border:1px solid #243447;border-radius:8px;padding:8px 8px;color:#E2EAF4;font-size:13px;outline:none">'
+      +'<button class="btn d sm" onclick="rmProc(\''+p.id+'\')">x</button>'
+      +'</div>';
+  }).join('');
+  updateSum();
+}
+function rmProc(id){ eForm.procs=eForm.procs.filter(function(p){return p.id!==id;}); renderProcs(); }
+
+// Expenses
+var ECATS=['Fuel','Food','Travel','Assistant','Equipment','Accommodation','Misc'];
+function addExp(cat){
+  eForm.exps.push({id:uid(),cat:cat,desc:'',amt:0});
+  renderExps();
+}
+function renderExps(){
+  var el=document.getElementById('exp-list');
+  el.innerHTML=eForm.exps.map(function(x,i){
+    return '<div style="margin-top:8px">'
+      +'<div style="display:flex;gap:6px;align-items:center">'
+      +'<select onchange="eForm.exps['+i+'].cat=this.value" style="flex:1;background:#162030;border:1px solid #243447;border-radius:8px;color:#E2EAF4;font-size:13px;padding:8px 10px;outline:none">'+ECATS.map(function(c){return '<option'+(c===x.cat?' selected':'')+'>'+c+'</option>';}).join('')+'</select>'
+      +'<input type="number" min="0" value="'+x.amt+'" placeholder="Rs" onchange="eForm.exps['+i+'].amt=+this.value;updateSum()" style="width:80px;background:#162030;border:1px solid #243447;border-radius:8px;padding:8px 8px;color:#E2EAF4;font-size:13px;outline:none">'
+      +'<button class="btn d sm" onclick="rmExp(\''+x.id+'\')">x</button>'
+      +'</div>'
+      +'<input value="'+x.desc+'" placeholder="Description (optional)" onchange="eForm.exps['+i+'].desc=this.value" style="margin-top:6px;width:100%;background:#162030;border:1px solid #243447;border-radius:8px;padding:8px 10px;color:#E2EAF4;font-size:12px;outline:none">'
+      +'</div>';
+  }).join('');
+  updateSum();
+}
+function rmExp(id){ eForm.exps=eForm.exps.filter(function(x){return x.id!==id;}); renderExps(); }
+
+// Summary
+function updateSum(){
+  var eff=getEff(eForm);
+  var g=rRev(eff)+eForm.procs.reduce(function(s,p){return s+p.c*p.r;},0);
+  var ex=eForm.exps.reduce(function(s,x){return s+x.amt;},0);
+  document.getElementById('s-g').textContent=fmt(g);
+  document.getElementById('s-e').textContent=fmt(ex);
+  document.getElementById('s-n').textContent=fmt(g-ex);
+}
+
+// Save / Edit / Cancel
+function saveEntry(){
+  var e={
+    id:editId||uid(),
+    date:document.getElementById('e-date').value,
+    hosp:eForm.hosp,
+    rt:eForm.rt,
+    morning:JSON.parse(JSON.stringify(eForm.morning)),
+    evening:JSON.parse(JSON.stringify(eForm.evening)),
+    procs:JSON.parse(JSON.stringify(eForm.procs)),
+    exps:JSON.parse(JSON.stringify(eForm.exps))
+  };
+  if(editId){ entries=entries.map(function(x){return x.id===editId?e:x;}); editId=null; }
+  else entries.unshift(e);
+  saveAll();
+  resetForm();
+  var sv=document.getElementById('e-saved');
+  sv.style.display='block'; setTimeout(function(){sv.style.display='none';},2500);
+}
+function resetForm(){
+  eForm={id:null,date:today(),hosp:hospitals[0]||'',rt:'both',morning:blankR(),evening:blankR(),procs:[],exps:[]};
+  editId=null;
+  document.getElementById('e-title').textContent='New Entry';
+  document.getElementById('e-savebtn').textContent='✓ Save Entry';
+  document.getElementById('e-cancelbtn').style.display='none';
+  renderEntry();
+}
+function cancelEdit(){ resetForm(); }
+function startEdit(id){
+  var e=entries.find(function(x){return x.id===id;});
+  if(!e) return;
+  editId=id;
+  eForm={
+    id:id, date:e.date, hosp:e.hosp||e.hospital||hospitals[0]||'', rt:e.rt||'both',
+    morning:JSON.parse(JSON.stringify(e.morning||blankR())),
+    evening:JSON.parse(JSON.stringify(e.evening||blankR())),
+    procs:JSON.parse(JSON.stringify(e.procs||[])),
+    exps:JSON.parse(JSON.stringify(e.exps||[]))
+  };
+  document.getElementById('e-title').textContent='Edit Entry';
+  document.getElementById('e-savebtn').textContent='✓ Update';
+  document.getElementById('e-cancelbtn').style.display='flex';
+  goTo('entry');
+}
+function delEntry(id){ if(confirm('Delete this entry?')){ entries=entries.filter(function(e){return e.id!==id;}); saveAll(); renderHist(); } }
+
+// ── History ─────────────────────────────────────────────
+function renderHist(){
+  var el=document.getElementById('hist-list');
+  if(entries.length===0){el.innerHTML='<div style="color:#64748B;text-align:center;margin-top:40px">No entries yet.</div>';return;}
+  el.innerHTML=entries.slice(0,30).map(function(e){
+    var s=sumE(e); var eff=getEff(e);
+    var rtl={morning:'Morning',evening:'Evening',both:'Both'}[e.rt||'both'];
+    return '<div style="background:#1C2A3A;border:1px solid #243447;border-radius:10px;padding:14px;margin-bottom:10px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">'
+      +'<div><div style="font-weight:600">'+dFull(e.date)+'</div>'
+      +'<div style="font-size:12px;color:#64748B">'+(e.hosp||e.hospital||'')+'</div>'
+      +'<span style="font-size:11px;background:rgba(14,165,189,.13);color:#0EA5BD;border-radius:6px;padding:2px 8px">'+rtl+'</span></div>'
+      +'<div style="text-align:right"><div style="color:#0EA5BD;font-weight:700">'+fmt(s.gross)+'</div>'
+      +(s.exp>0?'<div style="color:#EF4444;font-size:12px">-'+fmt(s.exp)+'</div>':'')+'</div></div>'
+      +'<div style="font-size:12px;color:#94A3B8;margin-bottom:8px">ICU:'+eff.icu.c+' Pvt:'+eff.pvt.c+' Ward:'+eff.ward.c+' OPD:'+eff.opd.c+' = '+rPts(eff)+' pts</div>'
+      +'<div style="display:flex;gap:6px"><button class="btn g sm" onclick="startEdit(\''+e.id+'\')">Edit</button><button class="btn d sm" onclick="delEntry(\''+e.id+'\')">Del</button></div>'
+      +'</div>';
+  }).join('');
+}
+
+// ── Dashboard ─────────────────────────────────────────
+function renderDash(){
+  var months=genMonths();
+  var sel=document.getElementById('d-mon');
+  if(sel.options.length===0) months.forEach(function(m){sel.add(new Option(m.l,m.v));});
+  var fm=sel.value||months[0].v;
+  var tod=today();
+  var tE=entries.filter(function(e){return e.date===tod;});
+  var mE=entries.filter(function(e){return e.date.slice(0,7)===fm;});
+  var tt=totOf(tE); var mt=totOf(mE);
+
+  document.getElementById('d-gross').textContent=fmt(tt.gross);
+  document.getElementById('d-net').textContent=fmt(tt.net);
+  document.getElementById('d-exp').textContent=fmt(tt.exp);
+  document.getElementById('d-cats').innerHTML=[['ICU',tt.icu,'#0EA5BD'],['Pvt',tt.pvt,'#8B5CF6'],['Ward',tt.ward,'#22C55E'],['OPD',tt.opd,'#F59E0B']].map(function(x){
+    return '<span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:'+x[2]+';margin-right:3px"></span>'+x[0]+': <b>'+x[1]+'</b></span>';
+  }).join('');
+
+  var pend=payments.filter(function(p){return p.status!=='paid';}).reduce(function(s,p){return s+Math.max(0,p.exp-p.rec);},0);
+  var pb=document.getElementById('d-pend');
+  if(pend>0){pb.style.display='block';document.getElementById('d-pend-amt').textContent=fmt(pend);}
+  else pb.style.display='none';
+
+  document.getElementById('d-stats').innerHTML=[
+    ['Month Gross',fmt(mt.gross),'#0EA5BD'],['Month Net',fmt(mt.net),'#22C55E'],
+    ['Patients',mt.icu+mt.pvt+mt.ward+mt.opd,'#F59E0B'],['Work Days',new Set(mE.map(function(e){return e.date;})).size,'#8B5CF6']
+  ].map(function(x){return '<div class="sc"><div class="lb">'+x[0]+'</div><div class="vl" style="color:'+x[2]+'">'+x[1]+'</div></div>';}).join('');
+
+  // bar chart
+  var bars=[];
+  for(var i=6;i>=0;i--){
+    var d=new Date(); d.setDate(d.getDate()-i);
+    var ds=d.toISOString().slice(0,10);
+    var lbl=d.toLocaleDateString('en-IN',{weekday:'short'}).slice(0,2);
+    var v=totOf(entries.filter(function(e){return e.date===ds;})).gross;
+    bars.push({l:lbl,v:v});
+  }
+  var mx=Math.max.apply(null,bars.map(function(b){return b.v;}))||1;
+  document.getElementById('d-bars').innerHTML=bars.map(function(b,i){
+    return '<div class="bar-col"><div class="bar" style="height:'+(b.v/mx*60)+'px;opacity:'+(i===bars.length-1?1:0.5)+'"></div><span class="bar-l">'+b.l+'</span></div>';
+  }).join('');
+}
+
+// ── Reports ───────────────────────────────────────────
+var repView='m';
+function setView(v){
+  repView=v;
+  ['m','d','h'].forEach(function(x){
+    document.getElementById('vt-'+x).className='btn '+(x===v?'p':'g')+' sm';
+  });
+  renderRep();
+}
+function renderRep(){
+  var months=genMonths();
+  var sel=document.getElementById('r-mon');
+  if(sel.options.length===0) months.forEach(function(m){sel.add(new Option(m.l,m.v));});
+  var fm=sel.value||months[0].v;
+  var mE=entries.filter(function(e){return e.date.slice(0,7)===fm;});
+  var mt=totOf(mE);
+  var days=Array.from(new Set(mE.map(function(e){return e.date;}))).sort();
+  var el=document.getElementById('rep-body');
+
+  if(repView==='m'){
+    var ann=mt.net*12; var tax=0; var tx=Math.max(0,ann-50000);
+    if(tx>1500000)tax=150000+(tx-1500000)*0.3;
+    else if(tx>1200000)tax=90000+(tx-1200000)*0.2;
+    else if(tx>900000)tax=45000+(tx-900000)*0.15;
+    else if(tx>600000)tax=15000+(tx-600000)*0.1;
+    else if(tx>300000)tax=(tx-300000)*0.05;
+    el.innerHTML='<div class="stats">'
+      +[['Gross',fmt(mt.gross),'#0EA5BD'],['Expenses',fmt(mt.exp),'#EF4444'],['Net',fmt(mt.net),'#22C55E'],['Active Days',days.length,'#F59E0B'],['Patients',mt.icu+mt.pvt+mt.ward+mt.opd,'#8B5CF6'],['Avg/Day',fmt(days.length?mt.gross/days.length:0),'#0EA5BD']].map(function(x){return '<div class="sc"><div class="lb">'+x[0]+'</div><div class="vl" style="color:'+x[2]+'">'+x[1]+'</div></div>';}).join('')
+      +'</div>'
+      +'<div class="card"><div style="font-size:12px;color:#94A3B8;margin-bottom:10px">Consultation Breakdown</div>'
+      +[['ICU',mt.icu,'#0EA5BD'],['Private',mt.pvt,'#8B5CF6'],['Ward',mt.ward,'#22C55E'],['OPD',mt.opd,'#F59E0B']].map(function(x){return '<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:13px">'+x[0]+'</span><span style="font-weight:700;color:'+x[2]+'">'+x[1]+' patients</span></div>';}).join('')
+      +'</div>'
+      +'<div class="card"><div style="font-size:12px;color:#94A3B8;margin-bottom:10px">Tax Estimate (New Regime)</div>'
+      +'<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><span style="color:#94A3B8">Projected Annual</span><span>'+fmt(ann)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#94A3B8">Estimated Tax</span><span style="color:#F59E0B">'+fmt(tax)+'</span></div>'
+      +'<div style="font-size:11px;color:#64748B;margin-top:6px">*Indicative. Consult your CA.</div></div>';
+  }
+
+  if(repView==='d'){
+    if(days.length===0){el.innerHTML='<div style="color:#64748B;text-align:center;margin-top:40px">No entries.</div>';return;}
+    el.innerHTML=days.slice().reverse().map(function(d){
+      var de=mE.filter(function(e){return e.date===d;}); var t=totOf(de);
+      return '<div class="card">'
+        +'<div style="display:flex;justify-content:space-between;margin-bottom:8px"><div style="font-weight:600">'+dFull(d)+'</div><span style="color:#0EA5BD;font-weight:700">'+fmt(t.gross)+'</span></div>'
+        +de.map(function(e){var eff=getEff(e);var rtl={morning:'Morning',evening:'Evening',both:'Both'}[e.rt||'both'];return '<div style="font-size:12px;color:#94A3B8;border-left:2px solid #243447;padding-left:8px;margin-bottom:4px"><span style="color:'+(e.rt==='morning'?'#F59E0B':e.rt==='evening'?'#8B5CF6':'#0EA5BD')+';font-weight:600">'+rtl+'</span> - '+(e.hosp||e.hospital||'')+'<br>ICU:'+eff.icu.c+' Pvt:'+eff.pvt.c+' Ward:'+eff.ward.c+' OPD:'+eff.opd.c+' = '+rPts(eff)+' pts</div>';}).join('')
+        +'</div>';
+    }).join('');
+  }
+
+  if(repView==='h'){
+    var hmap={};
+    mE.forEach(function(e){var h=e.hosp||e.hospital||'?';if(!hmap[h])hmap[h]=[];hmap[h].push(e);});
+    var hs=Object.keys(hmap);
+    if(hs.length===0){el.innerHTML='<div style="color:#64748B;text-align:center;margin-top:40px">No data.</div>';return;}
+    el.innerHTML=hs.map(function(h){
+      var t=totOf(hmap[h]); var d=new Set(hmap[h].map(function(e){return e.date;})).size;
+      return '<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">'
+        +'<div><div style="font-weight:600">'+h+'</div><div style="font-size:12px;color:#64748B">'+d+' visits - '+(t.icu+t.pvt+t.ward+t.opd)+' patients</div></div>'
+        +'<span style="background:rgba(14,165,189,.13);color:#0EA5BD;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">'+fmt(t.gross)+'</span></div>'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:12px">'
+        +'<div><div style="color:#64748B">Expenses</div><div style="color:#EF4444">'+fmt(t.exp)+'</div></div>'
+        +'<div><div style="color:#64748B">Net</div><div style="color:#22C55E">'+fmt(t.net)+'</div></div>'
+        +'<div><div style="color:#64748B">Avg/Visit</div><div style="color:#0EA5BD">'+fmt(d?t.gross/d:0)+'</div></div>'
+        +'</div></div>';
+    }).join('');
+  }
+}
+
+function expCSV(){
+  var sel=document.getElementById('r-mon'); var fm=sel.value;
+  var mE=entries.filter(function(e){return e.date.slice(0,7)===fm;});
+  var rows=[['Date','Hospital','Round','ICU','Pvt','Ward','OPD','Gross','Exp','Net']];
+  mE.forEach(function(e){var s=sumE(e);var eff=getEff(e);rows.push([e.date,e.hosp||e.hospital||'',e.rt||'both',eff.icu.c,eff.pvt.c,eff.ward.c,eff.opd.c,s.gross,s.exp,s.net]);});
+  var csv=rows.map(function(r){return r.join(',');}).join('\n');
+  var a=document.createElement('a');a.href='data:text/csv,'+encodeURIComponent(csv);a.download='practice_'+fm+'.csv';a.click();
+}
+
+// ── Hospital Report ───────────────────────────────────
+function renderHR(){
+  updateHospSelects();
+  var months=genMonths();
+  var hrm=document.getElementById('hr-m');
+  if(hrm.options.length===0) months.forEach(function(m){hrm.add(new Option(m.l,m.v));});
+  var selH=document.getElementById('hr-h').value||hospitals[0]||'';
+  var selM=hrm.value||months[0].v;
+  var hE=entries.filter(function(e){return (e.hosp||e.hospital||'')=== selH && e.date.slice(0,7)===selM;}).sort(function(a,b){return a.date.localeCompare(b.date);});
+  var el=document.getElementById('hr-body');
+
+  if(hE.length===0){el.innerHTML='<div style="color:#64748B;text-align:center;margin-top:40px;font-size:13px">No entries for this hospital/month.</div>';return;}
+
+  // totals
+  var acc={icu:0,pvt:0,ward:0,opd:0,mIcu:0,mPvt:0,mWard:0,mOpd:0,eIcu:0,ePvt:0,eWard:0,eOpd:0};
+  hE.forEach(function(e){
+    var eff=getEff(e);
+    acc.icu+=eff.icu.c;acc.pvt+=eff.pvt.c;acc.ward+=eff.ward.c;acc.opd+=eff.opd.c;
+    if(e.rt!=='evening'){acc.mIcu+=e.morning.icu.c;acc.mPvt+=e.morning.pvt.c;acc.mWard+=e.morning.ward.c;acc.mOpd+=e.morning.opd.c;}
+    if(e.rt!=='morning'){acc.eIcu+=e.evening.icu.c;acc.ePvt+=e.evening.pvt.c;acc.eWard+=e.evening.ward.c;acc.eOpd+=e.evening.opd.c;}
+  });
+  var total=acc.icu+acc.pvt+acc.ward+acc.opd;
+  var daySet=Array.from(new Set(hE.map(function(e){return e.date;}))).sort();
+  var avg=daySet.length?Math.round(total/daySet.length):0;
+
+  // day map
+  var dm={};
+  hE.forEach(function(e){if(!dm[e.date])dm[e.date]=[];dm[e.date].push(e);});
+
+  function buildLine(icu,pvt,ward,opd){
+    var p=[];
+    if(icu>0)p.push(icu+' ICU');
+    if(pvt>0)p.push(pvt+' Private');
+    if(ward>0)p.push(ward+' Ward');
+    if(opd>0)p.push(opd+' OPD');
+    return p.length>0?p.join(', '):'—';
+  }
+
+  var dayRows=daySet.map(function(d){
+    var es=dm[d];
+    var mIcu=0,mPvt=0,mWard=0,mOpd=0,hasMorn=false;
+    var eIcu=0,ePvt=0,eWard=0,eOpd=0,hasEve=false;
+    es.forEach(function(e){
+      if(e.rt!=='evening'){mIcu+=e.morning.icu.c;mPvt+=e.morning.pvt.c;mWard+=e.morning.ward.c;mOpd+=e.morning.opd.c;hasMorn=true;}
+      if(e.rt!=='morning'){eIcu+=e.evening.icu.c;ePvt+=e.evening.pvt.c;eWard+=e.evening.ward.c;eOpd+=e.evening.opd.c;hasEve=true;}
+    });
+    var dayTot=(mIcu+mPvt+mWard+mOpd)+(eIcu+ePvt+eWard+eOpd);
+    return '<div style="padding:12px 0;border-bottom:1px solid #243447">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+      +'<div style="font-size:15px;font-weight:700">'+dFmt(d)+'</div>'
+      +'<div style="font-size:12px;color:#64748B">'+dayTot+' patients</div></div>'
+      +(hasMorn?'<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 10px;background:rgba(245,158,11,.07);border-radius:8px;border-left:3px solid #F59E0B;margin-bottom:6px">'
+        +'<span style="font-size:12px;font-weight:700;color:#F59E0B;min-width:64px;flex-shrink:0">Morning</span>'
+        +'<span style="font-size:13px">'+buildLine(mIcu,mPvt,mWard,mOpd)+'</span></div>':'')
+      +(hasEve?'<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 10px;background:rgba(139,92,246,.07);border-radius:8px;border-left:3px solid #8B5CF6">'
+        +'<span style="font-size:12px;font-weight:700;color:#8B5CF6;min-width:64px;flex-shrink:0">Evening</span>'
+        +'<span style="font-size:13px">'+buildLine(eIcu,ePvt,eWard,eOpd)+'</span></div>':'')
+      +'</div>';
+  }).join('');
+
+  el.innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">'
+    +'<div class="sc"><div class="lb">Total</div><div class="vl" style="color:#0EA5BD">'+total+'</div></div>'
+    +'<div class="sc"><div class="lb">Days</div><div class="vl" style="color:#8B5CF6">'+daySet.length+'</div></div>'
+    +'<div class="sc"><div class="lb">Avg/Day</div><div class="vl" style="color:#F59E0B">'+avg+'</div></div>'
+    +'</div>'
+    +'<div class="card">'+dayRows+'</div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button class="btn p" style="flex:1" onclick="printHR(\''+selH+'\',\''+selM+'\')">Print / PDF</button>'
+    +'<button class="btn g" style="flex:1" onclick="expHRCSV(\''+selH+'\',\''+selM+'\')">CSV</button>'
+    +'</div>';
+}
+
+function printHR(selH,selM){
+  var hE=entries.filter(function(e){return (e.hosp||e.hospital||'')=== selH && e.date.slice(0,7)===selM;}).sort(function(a,b){return a.date.localeCompare(b.date);});
+  var acc={icu:0,pvt:0,ward:0,opd:0};
+  hE.forEach(function(e){var eff=getEff(e);acc.icu+=eff.icu.c;acc.pvt+=eff.pvt.c;acc.ward+=eff.ward.c;acc.opd+=eff.opd.c;});
+  var total=acc.icu+acc.pvt+acc.ward+acc.opd;
+  var dm={};
+  hE.forEach(function(e){if(!dm[e.date])dm[e.date]=[];dm[e.date].push(e);});
+  var days=Object.keys(dm).sort();
+  function bLine(icu,pvt,ward,opd){var p=[];if(icu>0)p.push(icu+' ICU');if(pvt>0)p.push(pvt+' Private');if(ward>0)p.push(ward+' Ward');if(opd>0)p.push(opd+' OPD');return p.length?p.join(', '):'none';}
+  var rows=days.map(function(d){
+    var es=dm[d];
+    var mIcu=0,mPvt=0,mWard=0,mOpd=0,hasMorn=false,eIcu=0,ePvt=0,eWard=0,eOpd=0,hasEve=false;
+    es.forEach(function(e){
+      if(e.rt!=='evening'){mIcu+=e.morning.icu.c;mPvt+=e.morning.pvt.c;mWard+=e.morning.ward.c;mOpd+=e.morning.opd.c;hasMorn=true;}
+      if(e.rt!=='morning'){eIcu+=e.evening.icu.c;ePvt+=e.evening.pvt.c;eWard+=e.evening.ward.c;eOpd+=e.evening.opd.c;hasEve=true;}
+    });
+    var dt=(mIcu+mPvt+mWard+mOpd)+(eIcu+ePvt+eWard+eOpd);
+    return '<div style="padding:12px 0;border-bottom:1px solid #eee"><div style="font-weight:700;margin-bottom:6px">'+dFmt(d)+' <span style="font-weight:400;color:#777;font-size:13px">('+dt+' pts)</span></div>'
+      +(hasMorn?'<div style="padding:6px 10px;background:#fffbeb;border-left:3px solid #d97706;border-radius:4px;margin-bottom:4px"><span style="font-weight:700;color:#b45309">Morning: </span>'+bLine(mIcu,mPvt,mWard,mOpd)+'</div>':'')
+      +(hasEve?'<div style="padding:6px 10px;background:#f5f3ff;border-left:3px solid #7c3aed;border-radius:4px"><span style="font-weight:700;color:#6d28d9">Evening: </span>'+bLine(eIcu,ePvt,eWard,eOpd)+'</div>':'')
+      +'</div>';
+  }).join('');
+  var months=genMonths();
+  var ml=( months.find(function(m){return m.v===selM;})||{l:selM} ).l;
+  var w=window.open('','_blank');
+  w.document.write('<!DOCTYPE html><html><head><title>Patient Report</title><style>body{font-family:Arial,sans-serif;padding:24px;max-width:600px}h2{margin-bottom:4px}.sub{color:#555;font-size:13px;margin-bottom:20px}.sumrow{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:24px}.sc{border:1px solid #e5e7eb;border-radius:8px;padding:10px 16px}.sc .v{font-size:22px;font-weight:800;color:#0EA5BD}.sc .l{font-size:11px;color:#777;text-transform:uppercase}.tot{background:#e0f2fe;border-radius:8px;padding:12px 16px;margin-top:20px}@media print{button{display:none}}</style></head><body>'
+    +'<h2>Patient Report</h2><div class="sub">'+selH+' | '+ml+' | Dr. Chinmay Daklia, MD Medicine</div>'
+    +'<div class="sumrow"><div class="sc"><div class="v">'+total+'</div><div class="l">Total</div></div><div class="sc"><div class="v">'+acc.icu+'</div><div class="l">ICU</div></div><div class="sc"><div class="v">'+acc.pvt+'</div><div class="l">Private</div></div><div class="sc"><div class="v">'+acc.ward+'</div><div class="l">Ward</div></div><div class="sc"><div class="v">'+acc.opd+'</div><div class="l">OPD</div></div></div>'
+    +rows
+    +'<div class="tot"><b>Total:</b> ICU '+acc.icu+' | Private '+acc.pvt+' | Ward '+acc.ward+' | OPD '+acc.opd+' | <b>Total '+total+'</b></div>'
+    +'<p style="font-size:11px;color:#aaa;margin-top:16px">Generated '+new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})+'</p>'
+    +'<script>window.print();<\/script></body></html>');
+  w.document.close();
+}
+
+function expHRCSV(selH,selM){
+  var hE=entries.filter(function(e){return (e.hosp||e.hospital||'')=== selH && e.date.slice(0,7)===selM;}).sort(function(a,b){return a.date.localeCompare(b.date);});
+  var rows=[['Date','Round','ICU','Private','Ward','OPD','Total']];
+  hE.forEach(function(e){
+    if(e.rt!=='evening')rows.push([e.date,'Morning',e.morning.icu.c,e.morning.pvt.c,e.morning.ward.c,e.morning.opd.c,rPts(e.morning)]);
+    if(e.rt!=='morning')rows.push([e.date,'Evening',e.evening.icu.c,e.evening.pvt.c,e.evening.ward.c,e.evening.opd.c,rPts(e.evening)]);
+  });
+  var csv=rows.map(function(r){return r.join(',');}).join('\n');
+  var a=document.createElement('a');a.href='data:text/csv,'+encodeURIComponent(csv);a.download='patients_'+selH.replace(/\s/g,'_')+'_'+selM+'.csv';a.click();
+}
+
+// ── Admissions ────────────────────────────────────────
+var admFormOpen=false;
+function toggleAdmForm(){
+  admFormOpen=!admFormOpen;
+  document.getElementById('adm-form').style.display=admFormOpen?'block':'none';
+  if(admFormOpen){
+    document.getElementById('af-id').value='';
+    document.getElementById('af-name').value='';
+    document.getElementById('af-date').value=today();
+    document.getElementById('af-ward').value='';
+    document.getElementById('af-notes').value='';
+    document.getElementById('af-title').textContent='New Admission';
+    updateHospSelects();
+  }
+}
+function saveAdm(){
+  var name=document.getElementById('af-name').value.trim();
+  if(!name){alert('Enter patient name.');return;}
+  var id=document.getElementById('af-id').value;
+  var adm={id:id||uid(),name:name,date:document.getElementById('af-date').value,hosp:document.getElementById('af-hosp').value,ward:document.getElementById('af-ward').value.trim(),notes:document.getElementById('af-notes').value.trim()};
+  if(id) admissions=admissions.map(function(a){return a.id===id?adm:a;});
+  else admissions.unshift(adm);
+  saveAll();
+  admFormOpen=false;
+  document.getElementById('adm-form').style.display='none';
+  renderAdm();
+}
+function editAdm(id){
+  var a=admissions.find(function(x){return x.id===id;});
+  if(!a)return;
+  admFormOpen=true;
+  document.getElementById('adm-form').style.display='block';
+  document.getElementById('af-title').textContent='Edit Admission';
+  document.getElementById('af-id').value=a.id;
+  document.getElementById('af-name').value=a.name;
+  document.getElementById('af-date').value=a.date;
+  document.getElementById('af-ward').value=a.ward||'';
+  document.getElementById('af-notes').value=a.notes||'';
+  updateHospSelects();
+  document.getElementById('af-hosp').value=a.hosp||hospitals[0]||'';
+}
+function delAdm(id){
+  if(confirm('Remove this admission?')){admissions=admissions.filter(function(a){return a.id!==id;});saveAll();renderAdm();}
+}
+function renderAdm(){
+  updateHospSelects();
+  var srch=(document.getElementById('adm-srch').value||'').toLowerCase();
+  var fh=document.getElementById('adm-fh').value;
+  var thisM=today().slice(0,7);
+  var filtered=admissions.filter(function(a){
+    var ms=!srch||a.name.toLowerCase().indexOf(srch)>-1||(a.notes||'').toLowerCase().indexOf(srch)>-1||(a.ward||'').toLowerCase().indexOf(srch)>-1;
+    var mh=!fh||a.hosp===fh;
+    return ms&&mh;
+  }).sort(function(a,b){return b.date.localeCompare(a.date);});
+  document.getElementById('adm-tot').textContent=admissions.length;
+  document.getElementById('adm-mon').textContent=admissions.filter(function(a){return a.date.slice(0,7)===thisM;}).length;
+  var el=document.getElementById('adm-list');
+  if(filtered.length===0){el.innerHTML='<div style="color:#64748B;text-align:center;margin-top:40px">'+( admissions.length===0?'No admissions yet. Tap + Add.':'No results.' )+'</div>';return;}
+  // group by date
+  var dm={};
+  filtered.forEach(function(a){if(!dm[a.date])dm[a.date]=[];dm[a.date].push(a);});
+  var ds=Object.keys(dm).sort().reverse();
+  el.innerHTML=ds.map(function(d){
+    var dt=new Date(d+'T00:00:00');
+    var dl=dFmt(d)+' - '+dt.toLocaleDateString('en-IN',{weekday:'long'});
+    return '<div style="font-size:11px;color:#64748B;text-transform:uppercase;letter-spacing:1px;padding:8px 4px 6px;font-weight:600">'+dl+'</div>'
+      +dm[d].map(function(a){
+        return '<div class="adm-item">'
+          +'<div style="display:flex;justify-content:space-between;align-items:flex-start">'
+          +'<div style="flex:1"><div style="font-size:15px;font-weight:700;margin-bottom:4px">'+a.name+'</div>'
+          +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+          +'<span style="font-size:12px;color:#94A3B8">'+( a.hosp||'' )+'</span>'
+          +(a.ward?'<span style="font-size:12px;background:rgba(14,165,189,.13);color:#0EA5BD;border-radius:4px;padding:1px 6px">'+a.ward+'</span>':'')
+          +'</div>'
+          +(a.notes?'<div style="font-size:12px;color:#64748B;margin-top:4px;font-style:italic">'+a.notes+'</div>':'')
+          +'</div>'
+          +'<div style="display:flex;gap:6px;margin-left:8px;flex-shrink:0">'
+          +'<button class="btn g sm" onclick="editAdm(\''+a.id+'\')">Edit</button>'
+          +'<button class="btn d sm" onclick="delAdm(\''+a.id+'\')">Del</button>'
+          +'</div></div></div>';
+      }).join('');
+  }).join('');
+}
+
+// ── Payments ──────────────────────────────────────────
+var payFormOpen=false;
+function togglePayForm(){
+  payFormOpen=!payFormOpen;
+  document.getElementById('pay-form').style.display=payFormOpen?'block':'none';
+  if(payFormOpen){
+    document.getElementById('pf-id').value='';
+    document.getElementById('pf-mon').value=today().slice(0,7);
+    document.getElementById('pf-exp').value=0;
+    document.getElementById('pf-rec').value=0;
+    document.getElementById('pf-notes').value='';
+    document.getElementById('pf-mg').value=0;
+    document.getElementById('pf-rs').value=0;
+    document.getElementById('pf-sal').style.display='none';
+    updateHospSelects();
+  }
+}
+function calcSal(){
+  var mg=+document.getElementById('pf-mg').value;
+  var rs=+document.getElementById('pf-rs').value;
+  var exp=+document.getElementById('pf-exp').value;
+  var el=document.getElementById('pf-sal');
+  if(mg>0){el.style.display='block';el.textContent='Calculated: '+fmt(Math.max(mg,(exp*rs)/100));}
+  else el.style.display='none';
+}
+function savePay(){
+  var id=document.getElementById('pf-id').value;
+  var exp=+document.getElementById('pf-exp').value;
+  var rec=+document.getElementById('pf-rec').value;
+  var status=rec>=exp?'paid':rec>0?'partial':'pending';
+  var p={id:id||uid(),hosp:document.getElementById('pf-h').value,month:document.getElementById('pf-mon').value,exp:exp,rec:rec,notes:document.getElementById('pf-notes').value,status:status,mg:+document.getElementById('pf-mg').value,rs:+document.getElementById('pf-rs').value};
+  if(id) payments=payments.map(function(x){return x.id===id?p:x;});
+  else payments.push(p);
+  saveAll();
+  payFormOpen=false;
+  document.getElementById('pay-form').style.display='none';
+  renderPay();
+}
+function editPay(id){
+  var p=payments.find(function(x){return x.id===id;});
+  if(!p)return;
+  payFormOpen=true;
+  document.getElementById('pay-form').style.display='block';
+  document.getElementById('pf-id').value=p.id;
+  document.getElementById('pf-mon').value=p.month;
+  document.getElementById('pf-exp').value=p.exp;
+  document.getElementById('pf-rec').value=p.rec;
+  document.getElementById('pf-notes').value=p.notes||'';
+  document.getElementById('pf-mg').value=p.mg||0;
+  document.getElementById('pf-rs').value=p.rs||0;
+  updateHospSelects();
+  document.getElementById('pf-h').value=p.hosp;
+  calcSal();
+}
+function delPay(id){
+  if(confirm('Delete payment?')){payments=payments.filter(function(x){return x.id!==id;});saveAll();renderPay();}
+}
+function renderPay(){
+  updateHospSelects();
+  var pend=payments.filter(function(p){return p.status!=='paid';}).reduce(function(s,p){return s+Math.max(0,p.exp-p.rec);},0);
+  var rec=payments.reduce(function(s,p){return s+p.rec;},0);
+  document.getElementById('pay-stats').innerHTML='<div class="sc"><div class="lb">Pending</div><div class="vl" style="color:#EF4444">'+fmt(pend)+'</div></div>'+'<div class="sc"><div class="lb">Received</div><div class="vl" style="color:#22C55E">'+fmt(rec)+'</div></div>';
+  var sc={paid:'#22C55E',partial:'#F59E0B',pending:'#EF4444'};
+  var el=document.getElementById('pay-list');
+  if(payments.length===0){el.innerHTML='<div style="color:#64748B;text-align:center;margin-top:40px">No payment records yet.</div>';return;}
+  el.innerHTML=[...payments].sort(function(a,b){return b.month.localeCompare(a.month);}).map(function(p){
+    var pAmt=Math.max(0,p.exp-p.rec);
+    var cs=p.mg>0?Math.max(p.mg,(p.exp*(p.rs||0))/100):null;
+    return '<div style="background:#1C2A3A;border:1px solid #243447;border-radius:10px;padding:14px;margin-bottom:10px;border-left:3px solid '+sc[p.status]+'">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">'
+      +'<div><div style="font-weight:600">'+p.hosp+'</div><div style="font-size:12px;color:#64748B">'+p.month+'</div></div>'
+      +'<span style="background:'+sc[p.status]+'22;color:'+sc[p.status]+';border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">'+p.status.toUpperCase()+'</span></div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:12px;margin-bottom:8px">'
+      +'<div><div style="color:#64748B">Expected</div><div style="font-weight:600">'+fmt(p.exp)+'</div></div>'
+      +'<div><div style="color:#64748B">Received</div><div style="font-weight:600;color:#22C55E">'+fmt(p.rec)+'</div></div>'
+      +'<div><div style="color:#64748B">Pending</div><div style="font-weight:600;color:'+(pAmt>0?'#EF4444':'#22C55E')+'">'+fmt(pAmt)+'</div></div>'
+      +'</div>'
+      +(cs?'<div style="font-size:12px;color:#F59E0B;background:rgba(245,158,11,.1);border-radius:6px;padding:4px 8px;margin-bottom:6px">Guarantee Salary: '+fmt(cs)+'</div>':'')
+      +(p.notes?'<div style="font-size:12px;color:#94A3B8;margin-bottom:8px">'+p.notes+'</div>':'')
+      +'<div style="display:flex;gap:6px"><button class="btn g sm" onclick="editPay(\''+p.id+'\')">Edit</button><button class="btn d sm" onclick="delPay(\''+p.id+'\')">Del</button></div>'
+      +'</div>';
+  }).join('');
+}
+
+// ── Init ──────────────────────────────────────────────
+(function(){
+  var months=genMonths();
+  ['d-mon','r-mon'].forEach(function(id){
+    var s=document.getElementById(id);
+    months.forEach(function(m){s.add(new Option(m.l,m.v));});
+  });
+  var hrm=document.getElementById('hr-m');
+  months.forEach(function(m){hrm.add(new Option(m.l,m.v));});
+  document.getElementById('e-date').value=today();
+  document.getElementById('af-date').value=today();
+  setView('m');
+  updateHospSelects();
+  renderDash();
+  renderEntry();
+})();
+</script>
+</body>
+</html>
