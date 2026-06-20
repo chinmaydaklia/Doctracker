@@ -333,6 +333,41 @@ input,select,button{font-family:inherit}
       New Device: Download backup from Drive, Import
     </div>
   </div>
+
+  <!-- CSV Import - Entries -->
+  <div class="card">
+    <div style="font-size:13px;font-weight:700;color:#22C55E;margin-bottom:4px">Import Entries from CSV</div>
+    <div style="font-size:12px;color:#94A3B8;margin-bottom:10px">Import daily consultation entries. Download the template first, fill it in Excel/Sheets, then upload.</div>
+    <div style="background:#162030;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;color:#64748B;font-family:monospace">
+      Date, Hospital, Round, ICU_Count, ICU_Rate, Pvt_Count, Pvt_Rate, Ward_Count, Ward_Rate, OPD_Count, OPD_Rate, OPD_Include
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button class="btn g sm" style="flex:1" onclick="downloadEntryTemplate()">Template CSV</button>
+      <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;background:#22C55E;color:#000;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer">
+        Upload CSV
+        <input type="file" accept=".csv" onchange="importEntriesCSV(this)" style="display:none">
+      </label>
+    </div>
+    <div id="csv-entry-msg" style="display:none;padding:10px;border-radius:8px;font-size:12px;text-align:center"></div>
+  </div>
+
+  <!-- CSV Import - Admissions -->
+  <div class="card">
+    <div style="font-size:13px;font-weight:700;color:#8B5CF6;margin-bottom:4px">Import Admissions from CSV</div>
+    <div style="font-size:12px;color:#94A3B8;margin-bottom:10px">Import patient admission records. Download the template, fill it, then upload.</div>
+    <div style="background:#162030;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;color:#64748B;font-family:monospace">
+      Name, Date, Hospital, Ward, Notes
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button class="btn g sm" style="flex:1" onclick="downloadAdmTemplate()">Template CSV</button>
+      <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;background:#8B5CF6;color:#fff;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer">
+        Upload CSV
+        <input type="file" accept=".csv" onchange="importAdmCSV(this)" style="display:none">
+      </label>
+    </div>
+    <div id="csv-adm-msg" style="display:none;padding:10px;border-radius:8px;font-size:12px;text-align:center"></div>
+  </div>
+
 </div>
 
 <!-- NAV -->
@@ -1193,6 +1228,168 @@ function importBackup(input){
     }
   };
   reader.readAsText(file);
+}
+
+
+// ── CSV Import ─────────────────────────────────────────
+function parseCSV(text){
+  var lines = text.trim().split(/\r?\n/);
+  var headers = lines[0].split(',').map(function(h){return h.trim().toLowerCase();});
+  var rows = [];
+  for(var i=1;i<lines.length;i++){
+    if(!lines[i].trim()) continue;
+    var vals = lines[i].split(',');
+    var obj = {};
+    headers.forEach(function(h,idx){ obj[h] = (vals[idx]||'').trim(); });
+    rows.push(obj);
+  }
+  return rows;
+}
+
+function showMsg(elId, text, ok){
+  var el=document.getElementById(elId);
+  el.style.display='block';
+  el.style.background=ok?'rgba(34,197,94,.13)':'rgba(239,68,68,.13)';
+  el.style.color=ok?'#22C55E':'#EF4444';
+  el.textContent=text;
+}
+
+function importEntriesCSV(input){
+  var file=input.files[0]; if(!file) return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var rows=parseCSV(e.target.result);
+      if(!rows.length){ showMsg('csv-entry-msg','No data rows found.',false); return; }
+
+      // Check required columns
+      var req=['date','hospital','round'];
+      var first=rows[0];
+      for(var i=0;i<req.length;i++){
+        if(!(req[i] in first)){ showMsg('csv-entry-msg','Missing column: '+req[i]+'. Check your CSV format.',false); return; }
+      }
+
+      // Group rows by date+hospital, merge morning+evening into one entry
+      var map={};
+      rows.forEach(function(r){
+        var key=r.date+'||'+(r.hospital||'');
+        if(!map[key]) map[key]={date:r.date,hosp:r.hospital,morning:null,evening:null,rows:[]};
+        map[key].rows.push(r);
+      });
+
+      var newEntries=[];
+      Object.keys(map).forEach(function(key){
+        var g=map[key];
+        var mRow=null, eRow=null, bRow=null;
+
+        g.rows.forEach(function(r){
+          var rt=(r.round||'both').toLowerCase();
+          if(rt==='morning') mRow=r;
+          else if(rt==='evening') eRow=r;
+          else bRow=r; // both
+        });
+
+        function makeRound(r){
+          if(!r) return blankR();
+          return {
+            icu:{c:parseInt(r.icu||r['icu count']||0)||0, r:400},
+            pvt:{c:parseInt(r.private||r['pvt count']||r['pvt']||0)||0, r:300},
+            ward:{c:parseInt(r.ward||r['ward count']||0)||0, r:200},
+            opd:{c:parseInt(r.opd||r['opd count']||0)||0, r:150, inc:true}
+          };
+        }
+
+        var entry;
+        if(bRow){
+          // single "both" row - split equally isn't possible, store as both with same data in morning
+          entry={id:uid(),date:g.date,hosp:g.hosp,rt:'both',
+            morning:makeRound(bRow), evening:blankR(), procs:[], exps:[]};
+        } else if(mRow && eRow){
+          entry={id:uid(),date:g.date,hosp:g.hosp,rt:'both',
+            morning:makeRound(mRow), evening:makeRound(eRow), procs:[], exps:[]};
+        } else if(mRow){
+          entry={id:uid(),date:g.date,hosp:g.hosp,rt:'morning',
+            morning:makeRound(mRow), evening:blankR(), procs:[], exps:[]};
+        } else if(eRow){
+          entry={id:uid(),date:g.date,hosp:g.hosp,rt:'evening',
+            morning:blankR(), evening:makeRound(eRow), procs:[], exps:[]};
+        }
+        if(entry) newEntries.push(entry);
+
+        // Add hospital to list if not present
+        if(g.hosp && hospitals.indexOf(g.hosp)===-1) hospitals.push(g.hosp);
+      });
+
+      // Merge — skip duplicates by date+hosp+rt
+      var added=0, skipped=0;
+      newEntries.forEach(function(ne){
+        var exists=entries.some(function(e){return e.date===ne.date && e.hosp===ne.hosp && e.rt===ne.rt;});
+        if(!exists){ entries.unshift(ne); added++; }
+        else skipped++;
+      });
+
+      saveAll();
+      renderBkp();
+      showMsg('csv-entry-msg','Imported '+added+' entries.'+(skipped>0?' Skipped '+skipped+' duplicates.':''), true);
+      input.value='';
+    }catch(err){
+      showMsg('csv-entry-msg','Error: '+err.message, false);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function downloadEntryTemplate(){
+  var csv='Date,Hospital,Round,ICU,Private,Ward,OPD,Gross,Expenses,Net\n'
+    +'2026-06-15,Arihant Hospital,morning,1,2,3,0,1700,0,1700\n'
+    +'2026-06-15,Arihant Hospital,evening,0,1,2,0,900,0,900\n'
+    +'2026-06-16,City Medical Center,both,2,3,5,2,3400,200,3200\n';
+  var a=document.createElement('a');
+  a.href='data:text/csv,'+encodeURIComponent(csv);
+  a.download='entries_template.csv'; a.click();
+}
+
+function importAdmCSV(input){
+  var file=input.files[0]; if(!file) return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var rows=parseCSV(e.target.result);
+      if(!rows.length){ showMsg('csv-adm-msg','No data rows found.',false); return; }
+      if(!('name' in rows[0])){ showMsg('csv-adm-msg','Missing "Name" column.',false); return; }
+
+      var added=0, skipped=0;
+      rows.forEach(function(r){
+        var name=(r.name||'').trim();
+        if(!name){ skipped++; return; }
+        var hosp=(r.hospital||r.hosp||'').trim();
+        if(hosp && hospitals.indexOf(hosp)===-1) hospitals.push(hosp);
+        var adm={id:uid(), name:name, date:r.date||today(), hosp:hosp, ward:(r.ward||'').trim(), notes:(r.notes||r.diagnosis||'').trim()};
+        // skip exact duplicate name+date+hosp
+        var exists=admissions.some(function(a){return a.name===adm.name && a.date===adm.date && a.hosp===adm.hosp;});
+        if(!exists){ admissions.unshift(adm); added++; }
+        else skipped++;
+      });
+
+      saveAll();
+      renderBkp();
+      showMsg('csv-adm-msg','Imported '+added+' admissions.'+(skipped>0?' Skipped '+skipped+' duplicates/blank rows.':''), true);
+      input.value='';
+    }catch(err){
+      showMsg('csv-adm-msg','Error: '+err.message, false);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function downloadAdmTemplate(){
+  var csv='Name,Date,Hospital,Ward,Notes\n'
+    +'Ramesh Kumar,2026-06-15,Arihant Hospital,ICU Bed 2,Dengue fever\n'
+    +'Sunita Devi,2026-06-16,City Medical Center,Ward B,Pneumonia\n'
+    +'Mohan Lal,2026-06-17,Dongargarh CHC,,Hypertension\n';
+  var a=document.createElement('a');
+  a.href='data:text/csv,'+encodeURIComponent(csv);
+  a.download='admissions_template.csv'; a.click();
 }
 
 // ── Init ──────────────────────────────────────────────
