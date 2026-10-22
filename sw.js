@@ -2,7 +2,7 @@
    works with no network. Same-origin requests are served from cache first and
    refreshed in the background; bump VERSION on every release. No data is cached
    here — records live in IndexedDB. */
-const VERSION = "doctracker-v3.0.0";
+const VERSION = "doctracker-v4.0.0";
 const SHELL = [
   "./",
   "./index.html",
@@ -13,6 +13,7 @@ const SHELL = [
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/icon-maskable-512.png",
+  "./vendor/anthropic-sdk.mjs",
   "./js/app.js",
   "./js/auth.js",
   "./js/backup.js",
@@ -31,7 +32,14 @@ const SHELL = [
   "./js/model.js",
   "./js/money.js",
   "./js/reports.js",
+  "./js/scan-store.js",
   "./js/store.js",
+  "./js/ocr/abbreviations.js",
+  "./js/ocr/claude.js",
+  "./js/ocr/geometry.js",
+  "./js/ocr/medicines.js",
+  "./js/ocr/preprocess.js",
+  "./js/ocr/schema.js",
   "./js/ui/dom.js",
   "./js/ui/encounter.js",
   "./js/ui/entry.js",
@@ -39,6 +47,7 @@ const SHELL = [
   "./js/ui/money.js",
   "./js/ui/patients.js",
   "./js/ui/reportsui.js",
+  "./js/ui/scan.js",
   "./js/ui/screens.js",
   "./js/ui/security.js",
   "./js/ui/sessions.js",

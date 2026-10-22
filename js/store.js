@@ -52,6 +52,8 @@ const WRITE_PERMISSION = {
   files: "investigations",
   blobs: "investigations",
   users: "users",
+  scans: "clinical.write",
+  secrets: "clinical.sign",
 };
 
 function req(cond, msg) {

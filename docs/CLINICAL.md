@@ -1,5 +1,7 @@
 # Clinical patient records — upgrade design
 
+Scanned paper prescriptions (schema 3) are described in [SCANNER.md](SCANNER.md).
+
 This upgrade adds clinical records to the existing consultation and income tracker. It extends the app: no existing store, record, calculation or screen was removed or reset. The financial design is unchanged and is described in [DESIGN.md](DESIGN.md).
 
 ## 1. What already existed (inspection)

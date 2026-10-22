@@ -261,7 +261,7 @@ const ops = {
   async updateEncounter(id, patch) {
     this.requirePerm("clinical.write");
     const before = this._editable(id);
-    const allowed = ["complaints", "history", "exam", "assessment", "plan", "advice", "followUp", "notes", "type", "workflow", "time", "doctorId"];
+    const allowed = ["complaints", "history", "exam", "assessment", "plan", "advice", "followUp", "notes", "type", "workflow", "time", "doctorId", "sources"];
     const after = { ...before, updatedAt: this.clock() };
     for (const k of allowed) if (patch[k] !== undefined) after[k] = structuredClone(patch[k]);
     if (patch.doctorId) {
@@ -549,7 +549,7 @@ const ops = {
 
   async saveTemplate(input) {
     this.requirePerm("clinical.write");
-    req(["complaint", "exam", "prescription", "medicine", "note", "advice"].includes(input.kind), "Invalid template type.");
+    req(["complaint", "exam", "prescription", "medicine", "note", "advice", "catalogue"].includes(input.kind), "Invalid template type.");
     req(clean(input.name) || input.kind === "note", "Name the template.");
     const t = { id: input.id || newId("TP"), kind: input.kind, name: clean(input.name) || "Note layout", data: structuredClone(input.data), createdAt: this.clock(), updatedAt: this.clock() };
     await this.commit([{ store: "templates", put: t }], [], { dataChange: true });
@@ -581,6 +581,7 @@ const ops = {
       prescriptions: by("prescriptions"),
       files: by("files"),
       notes: by("noteVersions"),
+      scans: by("scans"),
     };
   },
 
