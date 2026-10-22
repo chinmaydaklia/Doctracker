@@ -78,6 +78,29 @@ test("14. offline entries persist after the app is closed and reopened, even wit
   await page.close();
 });
 
+test("button groups inside form fields switch on tap (session, waiver, UPI)", async () => {
+  const page = await open();
+  await page.click(".quick >> text=Individual patient entry");
+  await page.click("button.pill:has-text('Own clinic')");
+  for (const name of ["Afternoon", "Evening"]) {
+    await page.click(`.seg button:has-text('${name}')`);
+    assert.equal((await page.textContent(".seg button.on >> nth=0")).trim(), name);
+  }
+  await page.click(".seg button:has-text('Follow-up')");
+  await page.fill(".field:has-text('Discount / waiver') input", "50");
+  await page.click(".seg button:has-text('Waiver')");
+  await page.click(".seg button:has-text('UPI')");
+  assert.equal(await page.locator(".seg button.on:has-text('Waiver')").count(), 1);
+  assert.equal(await page.locator(".seg button.on:has-text('UPI')").count(), 1);
+  await page.click("text=Save & close");
+  await page.waitForSelector("text=Individual visits (1)");
+  const main = await page.textContent("main");
+  assert.match(main, /Evening/);
+  assert.match(main, /Discounts & waivers−₹50/);
+  assert.match(main, /PaymentsUPI/);
+  await page.close();
+});
+
 test("demo mode is separate, loads sample data and every screen renders without errors", async () => {
   const page = await open();
   await page.click("#nav button[data-tab=more]");
