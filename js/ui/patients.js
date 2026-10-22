@@ -2,6 +2,7 @@
 import { h, add, clear, money, date, field, dateInput, segmented, select, toast, modal, confirmDialog, askReason, attempt, badge } from "./dom.js";
 import { today, fmtDateTime } from "../dates.js";
 import { SEXES, ALLOWED_UPLOADS, CONDITION_CATEGORIES, CONDITION_STATUS, COMORBIDITIES, ENCOUNTER_TYPES, CERTAINTY, DIAGNOSIS_KINDS, INVESTIGATION_CATEGORIES } from "../model.js";
+import { scanCard } from "./scan.js";
 import { ageLabel, searchPatients, problemList, formatVital, vitalLabel, VITAL_DEFS, medicationNeedsVerification, courseEnd } from "../clinical.js";
 
 export const patientLine = (p) => `${p.name} · ${ageLabel(p)} · ${SEXES[p.sex] || ""}`;
@@ -167,6 +168,7 @@ export function renderPatient(app, params) {
       "div",
       { class: "row-btns wrap" },
       store.can("clinical.write") ? h("button", { class: "btn primary", onclick: () => app.go("newEncounter", { patientId: p.id }) }, "+ New consultation") : null,
+      store.can("clinical.write") ? h("button", { class: "btn", onclick: () => app.go("scan", { patientId: p.id }) }, "📷 Scan prescription") : null,
       store.perms.includes("finance") ? h("button", { class: "btn", onclick: () => app.go("visit", { patientRecordId: p.id }) }, "+ Visit / fee only") : null,
       h("button", { class: "btn small", onclick: () => app.go("patientForm", { id: p.id }) }, "Edit details"),
     ),
@@ -294,6 +296,11 @@ function timeline(app, p, rec, params) {
       const dxs = rec.diagnoses.filter((d) => d.encounterId === e.id && !d.voided);
       if (f.dx && !dxs.some((d) => d.name.toLowerCase().includes(f.dx.toLowerCase()))) continue;
       items.push({ date: e.date, sort: e.date + (e.time || ""), node: encounterCard(app, e, rec, dxs) });
+    }
+    for (const sc of rec.scans || []) {
+      const d = new Date(sc.createdAt).toISOString().slice(0, 10);
+      if ((f.from && d < f.from) || (f.to && d > f.to) || f.loc || f.dx || (f.type && f.type !== "scan")) continue;
+      items.push({ date: d, sort: d + "~", node: scanCard(app, sc) });
     }
     for (const i of rec.investigations.filter((i) => !i.encounterId)) {
       const d = i.resultAt || i.performedAt || i.orderedAt || "";
@@ -480,7 +487,7 @@ function medicinesTab(app, p, rec) {
             h(
               "div",
               { class: "row" + (m.status === "stopped" ? " dim" : "") },
-              h("div", { class: "grow" }, h("b", null, m.name), " ", [m.strength, m.dose, m.frequency].filter(Boolean).join(" "), " ", badge(m.status === "taking" ? "taking" : m.status, m.status === "taking" ? "mid" : ""), m.status === "taking" && medicationNeedsVerification(m, t) ? badge(m.lastVerifiedAt ? "verify — last checked " + date(m.lastVerifiedAt) : "not verified", "warn") : null),
+              h("div", { class: "grow" }, h("b", null, m.name), " ", [m.strength, m.dose, m.frequency].filter(Boolean).join(" "), " ", badge({ taking: "taking", stopped: "stopped", unknown: "status unknown" }[m.status] || m.status, m.status === "taking" ? "mid" : ""), m.status !== "stopped" && medicationNeedsVerification(m, t) ? badge(m.lastVerifiedAt ? "verify — last checked " + date(m.lastVerifiedAt) : "not verified", "warn") : null, m.source && m.source.type === "scan" ? h("div", { class: "small muted" }, m.notes) : null),
               canEdit ? h("div", { class: "right" }, h("button", { class: "link small", onclick: () => attempt(() => store.saveMedication({ ...m, verified: true })).then(() => app.render()) }, "verified today"), h("button", { class: "link small", onclick: () => medicationDialog(app, p, m).then((ok) => ok && app.render()) }, "edit")) : null,
             ),
           )

@@ -1,7 +1,7 @@
 // Domain constants, store names and example configuration.
 
-export const DB_SCHEMA_VERSION = 2; // IndexedDB object-store layout (1 = financial only, 2 = + clinical)
-export const DATA_FORMAT = 2; // backup file format (1 = financial only; still restorable)
+export const DB_SCHEMA_VERSION = 3; // IndexedDB layout: 1 = financial, 2 = + clinical, 3 = + prescription scans
+export const DATA_FORMAT = 3; // backup file format (older formats still restorable)
 
 export const FINANCIAL_STORES = [
   "locations",
@@ -33,6 +33,8 @@ export const CLINICAL_META = {
   prescriptions: ["patientId", "encounterId", "status"],
   noteVersions: ["patientId", "encounterId", "version", "signedAt"],
   files: ["patientId", "encounterId", "investigationId", "size"],
+  scans: ["patientId", "encounterId", "status"], // scanned prescriptions under review (schema 3)
+  secrets: [], // e.g. the doctor's AI-service key (schema 3)
 };
 export const CLINICAL_STORES = Object.keys(CLINICAL_META);
 
@@ -48,6 +50,9 @@ export const STORES = [
 ];
 // Stores that make up "the records" (exported, counted, checksummed).
 export const DATA_STORES = STORES.filter((s) => s !== "snapshots");
+// Backup format in which each store first appeared (older backups simply lack it).
+export const STORE_SINCE = { patients: 2, blobs: 2, templates: 2, users: 2, clinicalAudit: 2, scans: 3, secrets: 3, ...Object.fromEntries(Object.keys(CLINICAL_META).filter((s) => s !== "scans" && s !== "secrets").map((s) => [s, 2])) };
+export const storesForFormat = (format) => DATA_STORES.filter((s) => (STORE_SINCE[s] || 1) <= format);
 // Stores not held in memory (fetched on demand).
 export const LAZY_STORES = ["blobs", "snapshots"];
 
@@ -165,6 +170,7 @@ export const ENCOUNTER_TYPES = {
   icu: "ICU",
   camp: "Camp / village OPD",
   tele: "Teleconsultation",
+  scan: "Paper prescription (scanned)",
   other: "Other",
 };
 

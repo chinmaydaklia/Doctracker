@@ -141,7 +141,7 @@ test("legacy tracker data converts to summary sessions without double counting",
 test("service worker precaches every app file (offline start)", async () => {
   const { readFileSync, readdirSync } = await import("node:fs");
   const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
-  const files = [...readdirSync(new URL("../js", import.meta.url)).filter((f) => f.endsWith(".js")).map((f) => "js/" + f), ...readdirSync(new URL("../js/ui", import.meta.url)).map((f) => "js/ui/" + f), "css/app.css", "index.html", "manifest.webmanifest"];
+  const files = [...readdirSync(new URL("../js", import.meta.url)).filter((f) => f.endsWith(".js")).map((f) => "js/" + f), ...readdirSync(new URL("../js/ui", import.meta.url)).map((f) => "js/ui/" + f), ...readdirSync(new URL("../js/ocr", import.meta.url)).map((f) => "js/ocr/" + f), "vendor/anthropic-sdk.mjs", "css/app.css", "index.html", "manifest.webmanifest"];
   for (const f of files) assert.ok(sw.includes(`"./${f}"`), `sw.js is missing ${f}`);
 });
 

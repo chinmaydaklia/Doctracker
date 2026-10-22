@@ -473,6 +473,87 @@ export function renderClinicalSettings(app) {
       h("div", { class: "grid2" }, [["complaint", "Chief complaint"], ["vitals", "Vitals"], ["exam", "Examination"], ["diagnosis", "Diagnosis"]].map(([k, label]) => h("label", { class: "check small" }, h("input", { type: "checkbox", checked: !!st.required[k], onchange: (e) => (st.required[k] = e.target.checked) }), " ", label))),
       h("button", { class: "btn primary", onclick: save }, "Save"),
     ),
+    store.can("clinical.sign") ? ocrCard(app) : null,
+    catalogueCard(app),
     lists,
+  );
+}
+
+// Cloud handwriting reading: off by default; disclosure must be accepted to enable.
+function ocrCard(app) {
+  const store = app.store;
+  const cfg = store.ocrSettings;
+  const key = h("input", { type: "password", autocomplete: "off", value: cfg.apiKey || "", placeholder: "sk-ant-…" });
+  const base = h("input", { type: "text", value: cfg.baseURL || "", placeholder: "optional: same-site proxy path, e.g. /ai-proxy" });
+  const ack = h("input", { type: "checkbox", checked: !!cfg.enabled });
+  const err = h("div", { class: "err" });
+  const save = async (enabled) => {
+    err.textContent = "";
+    if (enabled && !ack.checked) return (err.textContent = "Read and accept the points above to enable cloud reading.");
+    try {
+      await store.saveOcrSettings({ enabled, apiKey: key.value, baseURL: base.value });
+      toast(enabled ? "Cloud reading enabled" : "Cloud reading off");
+      app.render();
+    } catch (e) {
+      err.textContent = e.message;
+    }
+  };
+  return h(
+    "div",
+    { class: "card" },
+    h("h3", null, "Prescription reading (AI, cloud) ", cfg.enabled ? badge("on", "ok") : badge("off", "mid")),
+    h(
+      "ul",
+      { class: "small" },
+      h("li", null, "Handwriting is read by Claude (Anthropic API). When you choose “Read with AI”, ", h("b", null, "the prescription image leaves this device"), " and is sent over an encrypted connection to Anthropic. Nothing else from the patient's record is sent."),
+      h("li", null, "Anthropic processes the image under its API terms and data-retention policy. This app sends images inline and does not upload them to any file storage or public link."),
+      h("li", null, "Obtain the patient's consent where your obligations require it (e.g. India's Digital Personal Data Protection Act, 2023)."),
+      h("li", null, "Readings can be wrong. Every field is shown beside the image for you to check, edit, approve or reject. Nothing enters the record without your approval; medicines are never turned into a prescription."),
+      h("li", null, "The API key is stored encrypted on this device and is used only while a doctor is signed in. Requests are billed to that key. Without cloud reading you can still scan and type the details yourself."),
+    ),
+    field("Anthropic API key", key),
+    field("Proxy path (optional)", base),
+    h("label", { class: "check" }, ack, " I have read these points and accept them for this practice"),
+    err,
+    h("div", { class: "row-btns wrap" }, h("button", { class: "btn primary small", onclick: () => save(true) }, cfg.enabled ? "Save" : "Enable cloud reading"), cfg.enabled ? h("button", { class: "btn small", onclick: () => save(false) }, "Turn off") : null),
+    cfg.disclosureAcceptedAt ? h("p", { class: "small muted" }, "Accepted ", fmtDateTime(cfg.disclosureAcceptedAt), " by ", cfg.updatedBy || "") : null,
+  );
+}
+
+// Extra medicine names for checking scanned prescriptions (brand → generic).
+function catalogueCard(app) {
+  const store = app.store;
+  const t = store.data.templates.find((x) => x.kind === "catalogue");
+  const items = t ? t.data.items : [];
+  const name = h("input", { type: "text", placeholder: "Brand or generic as written, e.g. Calpol 650" });
+  const gen = h("input", { type: "text", placeholder: "Generic / composition" });
+  const saveItems = (next) => attempt(() => store.saveTemplate({ id: t?.id, kind: "catalogue", name: "Medicine catalogue additions", data: { items: next } })).then(() => app.render());
+  return h(
+    "div",
+    { class: "card" },
+    h("h3", null, "Medicine catalogue additions"),
+    h("p", { class: "small muted" }, "Scanned medicine names are checked against a starter catalogue of common Indian brands and generics, your favourites, and these additions. A close-but-different name is only suggested, never substituted."),
+    items.slice(0, 20).map((x, i) => h("div", { class: "row" }, h("span", { class: "grow" }, h("b", null, x.name), x.generic ? " = " + x.generic : ""), h("button", { class: "link small", onclick: () => saveItems(items.filter((_, j) => j !== i)) }, "remove"))),
+    items.length > 20 ? h("button", { class: "link small", onclick: async () => { if (await confirmDialog("Remove all added names", `Remove all ${items.length} added names?`, { danger: true, ok: "Remove all" })) saveItems([]); } }, "remove all added names") : null,
+    h("div", { class: "grid2" }, name, gen),
+    h("button", { class: "btn small", onclick: () => name.value.trim() && saveItems([...items, { name: name.value.trim(), generic: gen.value.trim() }]) }, "+ Add"),
+    h(
+      "div",
+      { class: "field" },
+      h("span", { class: "lbl" }, "Import a medicine list (TXT: one name per line, or CSV: name,generic)"),
+      h("input", { type: "file", accept: ".txt,.csv,text/plain,text/csv", onchange: async (e) => {
+        const f = e.target.files[0];
+        e.target.value = "";
+        if (!f) return;
+        const { parseMedicineList, normalizeName } = await import("../ocr/medicines.js");
+        const { items: got, skipped } = parseMedicineList(await readFileText(f));
+        const have = new Set(items.map((x) => normalizeName(x.name)));
+        const fresh = got.filter((x) => !have.has(normalizeName(x.name)));
+        if (!fresh.length) return toast(`Nothing new in ${f.name}${skipped ? ` (${skipped} lines skipped)` : ""}.`);
+        if (await confirmDialog("Import medicine names", `Add ${fresh.length} names from ${f.name} to the catalogue used for checking scanned prescriptions?${skipped ? `\n${skipped} lines were not names and are skipped.` : ""}\n\nUse only lists you have the right to use. Names are used for spelling checks and suggestions; they never replace what was written.`, { ok: `Add ${fresh.length}` }))
+          saveItems([...items, ...fresh]);
+      } }),
+    ),
+    items.length > 20 ? h("p", { class: "small muted" }, `${items.length} names added in total.`) : null,
   );
 }

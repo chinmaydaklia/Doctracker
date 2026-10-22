@@ -4,7 +4,7 @@
 // Clinical records and attachments are exported exactly as stored: encrypted. A
 // backup can only be read clinically with a doctor's password or the recovery code.
 
-import { DATA_STORES, DATA_FORMAT, FINANCIAL_STORES } from "./model.js";
+import { DATA_STORES, DATA_FORMAT, storesForFormat } from "./model.js";
 import { newId } from "./ids.js";
 import { toB64, fromB64 } from "./crypto.js";
 
@@ -109,8 +109,8 @@ export async function verifyBackup(obj) {
   const errors = [];
   if (!obj || obj.app !== "doctracker" || !obj.stores) return { ok: false, errors: ["This is not a Doctracker backup file."] };
   if (obj.format > DATA_FORMAT) return { ok: false, errors: ["This backup was made by a newer version of the app. Update the app first."] };
-  // Format 1 (before clinical records) had only the financial stores.
-  const names = obj.format >= 2 ? DATA_STORES : FINANCIAL_STORES;
+  // Older formats lack the stores added later (1: financial only; 2: no scans).
+  const names = storesForFormat(obj.format || 1);
   for (const s of names) if (!Array.isArray(obj.stores[s])) errors.push(`Missing section: ${s}`);
   if (errors.length) return { ok: false, errors };
   const stores = sortedStores(obj.stores, names);

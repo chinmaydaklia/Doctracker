@@ -10,7 +10,7 @@ import { setupFirstDoctor, signIn, signOut, addUser, recoverWithCode } from "../
 import { activityTotals, collectionTotals, computeSettlement } from "../js/calc.js";
 import { dailyReport, monthlyReport, locationReport, paymentReport } from "../js/reports.js";
 import { buildBackup, verifyBackup, restoreBackup } from "../js/backup.js";
-import { FINANCIAL_STORES } from "../js/model.js";
+import { FINANCIAL_STORES, DB_SCHEMA_VERSION } from "../js/model.js";
 import { checkVital, problemList, composeNote, noteToText, findPatientMatches, bmi } from "../js/clinical.js";
 
 const IT = 1000; // fast key derivation for tests
@@ -69,7 +69,7 @@ test("migration: schema 1 database upgrades with financial reports unchanged and
   v1.close();
 
   const adapter = await openIndexedDB(name);
-  assert.deepEqual([adapter.migration.from, adapter.migration.to], [1, 2]);
+  assert.deepEqual([adapter.migration.from, adapter.migration.to], [1, DB_SCHEMA_VERSION]);
   const snap = await adapter.get("snapshots", adapter.migration.snapshotId);
   assert.equal(snap.stores.visits.length, store.data.visits.length, "pre-upgrade copy holds the old records");
   const up = await Store.open(adapter);

@@ -12,7 +12,9 @@ You can enter a whole OPD as a quick summary ("18 new, 9 follow-ups, ₹4,200 ca
 
 **Clinical records (optional):** patient profiles, consultations (complaints, vitals, examination, diagnoses, investigations with report uploads, prescriptions, advice, follow-up), signed and amendable consultation notes, and a longitudinal timeline per patient. They are encrypted on the device, with doctor / receptionist / staff accounts. They are linked to visits but never create or change fees.
 
-Design, database schema, calculation rules and test plan: [docs/DESIGN.md](docs/DESIGN.md). Clinical upgrade (migration, schema, security): [docs/CLINICAL.md](docs/CLINICAL.md).
+**Prescription scanner:** photograph or upload a handwritten prescription. AI reading (optional, cloud) or manual entry turns it into structured fields, which you review beside the image and approve one by one before anything enters the record. Medicines are never turned into a prescription.
+
+Design, database schema, calculation rules and test plan: [docs/DESIGN.md](docs/DESIGN.md). Clinical upgrade (migration, schema, security): [docs/CLINICAL.md](docs/CLINICAL.md). Prescription scanner: [docs/SCANNER.md](docs/SCANNER.md).
 
 ## Using it
 
@@ -43,6 +45,8 @@ npm start            # http://localhost:8080
 npm test             # unit + integration tests
 npm run test:e2e     # browser tests (needs Chromium; set CHROMIUM_PATH if not auto-detected)
 npm run icons        # regenerate PNG icons
+npm run vendor:sdk   # rebuild vendor/anthropic-sdk.mjs after changing the pinned SDK version
+npm run ocr:eval -- <folder>   # measure handwriting accuracy on your own prescriptions (needs ANTHROPIC_API_KEY)
 ```
 
 The app is plain ES modules. Open `index.html` through any static web server. Service workers and IndexedDB need `http://localhost` or `https://`, not `file://`.
@@ -70,5 +74,6 @@ The previous single-page tracker is kept as [`legacy.html`](legacy.html). Its da
 | `js/demo.js` | Example locations and demo data (separate demo database) |
 | `js/clinical.js`, `js/clinical-store.js` | Clinical rules and operations (patients, encounters, vitals, diagnoses, investigations, prescriptions, sign-off) |
 | `js/crypto.js`, `js/auth.js` | Encryption of clinical data, accounts, roles, recovery |
+| `js/ocr/`, `js/scan-store.js`, `vendor/` | Prescription scanner: image clean-up, reading contract, medicine catalogue, review/import rules, bundled Anthropic SDK |
 | `js/ui/` | Screens |
-| `tests/` | `required.test.js` (the 14 acceptance tests), `units.test.js`, `clinical.test.js`, `e2e/` |
+| `tests/` | `required.test.js` (the 14 acceptance tests), `units.test.js`, `clinical.test.js`, `scan.test.js`, `e2e/` |

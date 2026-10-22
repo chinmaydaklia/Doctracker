@@ -9,7 +9,7 @@
 //   close()
 //   migration            -> { from, to, snapshotId } when this open upgraded the schema
 
-import { STORES, LAZY_STORES, DB_SCHEMA_VERSION, FINANCIAL_STORES } from "./model.js";
+import { STORES, LAZY_STORES, DB_SCHEMA_VERSION } from "./model.js";
 
 export const REAL_DB = "doctracker";
 export const DEMO_DB = "doctracker-demo";
@@ -42,7 +42,9 @@ async function snapshotBeforeUpgrade(idb, name) {
     db.close();
     return { from, existing, snapshotId: null };
   }
-  const names = FINANCIAL_STORES.filter((s) => db.objectStoreNames.contains(s));
+  // Every existing store except earlier safety copies and attachment bytes (which the
+  // upgrade never touches).
+  const names = [...db.objectStoreNames].filter((s) => s !== "snapshots" && s !== "blobs");
   const tx = db.transaction([...names, "snapshots"], "readwrite");
   const stores = {};
   await Promise.all(names.map(async (s) => (stores[s] = await promisify(tx.objectStore(s).getAll()))));

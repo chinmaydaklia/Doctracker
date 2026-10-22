@@ -1,6 +1,7 @@
 // App bootstrap: storage, sign-in gate, router, header status, auto-lock, service worker.
 import { Store } from "./store.js";
 import "./clinical-store.js";
+import "./scan-store.js";
 import { openIndexedDB, memoryAdapter, REAL_DB, DEMO_DB } from "./db.js";
 import { signOut } from "./auth.js";
 import { h, add, clear, toast } from "./ui/dom.js";

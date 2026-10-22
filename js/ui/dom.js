@@ -116,7 +116,9 @@ export function askReason(title, message, { ok = "Save", danger = false, require
 }
 
 export function errorToast(e) {
-  console.error(e && e.name === "ValidationError" ? e.message : e);
+  // Validation / permission messages are expected feedback, not faults.
+  if (e && (e.name === "ValidationError" || e.name === "PermissionError" || e.name === "ReaderError")) console.info(e.message);
+  else console.error(e);
   toast(e && e.message ? e.message : String(e), "err");
 }
 

@@ -7,6 +7,7 @@ import { renderMore, renderWelcome, renderLocations, renderLocation, renderBacku
 import { renderLogin, renderSecuritySetup, renderUsers } from "./security.js";
 import { renderPatients, renderPatientForm, renderPatient } from "./patients.js";
 import { renderNewEncounter, renderEncounter, renderNote } from "./encounter.js";
+import { renderScan, renderScanReview } from "./scan.js";
 
 // tab: top-level screen in the bottom navigation; parent: tab highlighted for a sub-screen.
 // needsParams: cannot be opened from a bare URL (its parameters live in memory only,
@@ -31,6 +32,8 @@ export const screens = {
   newEncounter: { render: renderNewEncounter, parent: "patients", perm: "clinical.write" },
   encounter: { render: renderEncounter, parent: "patients", needsParams: true, perm: "vitals" },
   note: { render: renderNote, parent: "patients", needsParams: true, perm: "clinical.read" },
+  scan: { render: renderScan, parent: "patients", perm: "clinical.write" },
+  scanReview: { render: renderScanReview, parent: "patients", needsParams: true, perm: "clinical.read" },
   more: { render: renderMore, tab: true },
   locations: { render: renderLocations, parent: "more", perm: "finance.admin" },
   location: { render: renderLocation, parent: "more", perm: "finance.admin" },

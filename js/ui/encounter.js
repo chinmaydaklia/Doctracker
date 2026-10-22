@@ -5,6 +5,7 @@ import { rateFor } from "../calc.js";
 import { METHODS, SESSION_NAMES, ENCOUNTER_TYPES, COMMON_COMPLAINTS, COMORBIDITIES, EXAM_STATUS, DIAGNOSIS_KINDS, CERTAINTY, INVESTIGATION_CATEGORIES, COMMON_INVESTIGATIONS, ROUTES, FREQUENCIES_RX, TIMINGS, GLUCOSE_CONTEXT, GLUCOSE_SOURCE, ALLOWED_UPLOADS } from "../model.js";
 import { ageLabel, searchPatients, problemList, formatVital, vitalLabel, bmiFrom, followUpDate, noteToText, medicationNeedsVerification } from "../clinical.js";
 import { fileLink } from "./patients.js";
+import { scanCard } from "./scan.js";
 import { cap } from "./entry.js";
 
 const dl = (id, items) => h("datalist", { id }, items.map((x) => h("option", { value: x })));
@@ -280,6 +281,10 @@ export function renderEncounter(app, { id }) {
       ),
     ], true),
   );
+
+  // Scanned paper prescriptions for this consultation
+  const scans = store.data.scans.filter((x) => x.encounterId === id);
+  add(root, section("Scanned prescription", [h("p", { class: "small muted" }, "Photograph or upload a paper prescription. Its contents are read for you to check field by field; nothing enters this consultation until you approve and import it."), scans.map((sc) => scanCard(app, sc)), h("button", { class: "btn small", onclick: () => save().then(() => app.go("scan", { patientId: p.id, encounterId: id })) }, "📷 Scan / upload prescription")], !!scans.length));
 
   // Investigations
   add(root, section("Investigations & reports", [b.investigations.length ? b.investigations.map((i) => h("div", { class: "row" }, h("div", { class: "grow" }, h("b", null, i.name), " ", i.value ? `${i.value} ${i.unit}` : i.status === "ordered" ? badge("ordered", "mid") : "", i.refRange ? h("small", { class: "muted" }, ` (ref ${i.refRange})`) : "", h("div", { class: "small muted" }, date(i.resultAt || i.orderedAt), i.interpretation ? " · " + i.interpretation : ""), b.files.filter((f) => f.investigationId === i.id).map((f) => fileLink(app, f))), h("button", { class: "link small", onclick: () => save().then(() => investigationDialog(app, p.id, id, i)).then((ok) => ok && rerender()) }, i.status === "ordered" ? "add result" : "notes / files"))) : h("p", { class: "small muted" }, "None for this consultation."), h("button", { class: "btn small", onclick: () => save().then(() => investigationDialog(app, p.id, id)).then((ok) => ok && rerender()) }, "+ Order / record investigation")]));
