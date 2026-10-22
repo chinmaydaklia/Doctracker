@@ -533,8 +533,27 @@ function catalogueCard(app) {
     { class: "card" },
     h("h3", null, "Medicine catalogue additions"),
     h("p", { class: "small muted" }, "Scanned medicine names are checked against a starter catalogue of common Indian brands and generics, your favourites, and these additions. A close-but-different name is only suggested, never substituted."),
-    items.map((x, i) => h("div", { class: "row" }, h("span", { class: "grow" }, h("b", null, x.name), " = ", x.generic), h("button", { class: "link small", onclick: () => saveItems(items.filter((_, j) => j !== i)) }, "remove"))),
+    items.slice(0, 20).map((x, i) => h("div", { class: "row" }, h("span", { class: "grow" }, h("b", null, x.name), x.generic ? " = " + x.generic : ""), h("button", { class: "link small", onclick: () => saveItems(items.filter((_, j) => j !== i)) }, "remove"))),
+    items.length > 20 ? h("button", { class: "link small", onclick: async () => { if (await confirmDialog("Remove all added names", `Remove all ${items.length} added names?`, { danger: true, ok: "Remove all" })) saveItems([]); } }, "remove all added names") : null,
     h("div", { class: "grid2" }, name, gen),
     h("button", { class: "btn small", onclick: () => name.value.trim() && saveItems([...items, { name: name.value.trim(), generic: gen.value.trim() }]) }, "+ Add"),
+    h(
+      "div",
+      { class: "field" },
+      h("span", { class: "lbl" }, "Import a medicine list (TXT: one name per line, or CSV: name,generic)"),
+      h("input", { type: "file", accept: ".txt,.csv,text/plain,text/csv", onchange: async (e) => {
+        const f = e.target.files[0];
+        e.target.value = "";
+        if (!f) return;
+        const { parseMedicineList, normalizeName } = await import("../ocr/medicines.js");
+        const { items: got, skipped } = parseMedicineList(await readFileText(f));
+        const have = new Set(items.map((x) => normalizeName(x.name)));
+        const fresh = got.filter((x) => !have.has(normalizeName(x.name)));
+        if (!fresh.length) return toast(`Nothing new in ${f.name}${skipped ? ` (${skipped} lines skipped)` : ""}.`);
+        if (await confirmDialog("Import medicine names", `Add ${fresh.length} names from ${f.name} to the catalogue used for checking scanned prescriptions?${skipped ? `\n${skipped} lines were not names and are skipped.` : ""}\n\nUse only lists you have the right to use. Names are used for spelling checks and suggestions; they never replace what was written.`, { ok: `Add ${fresh.length}` }))
+          saveItems([...items, ...fresh]);
+      } }),
+    ),
+    items.length > 20 ? h("p", { class: "small muted" }, `${items.length} names added in total.`) : null,
   );
 }

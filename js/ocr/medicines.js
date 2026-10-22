@@ -86,17 +86,51 @@ export function normalizeName(s) {
     .trim();
 }
 
-function lev(a, b) {
+// Optimal-string-alignment (Damerau–Levenshtein) distance: a swapped pair of letters
+// ("Azitrhal") counts as one edit — a common handwriting misread.
+export function editDistance(a, b) {
   if (a === b) return 0;
   const m = a.length, n = b.length;
   if (!m || !n) return m + n;
+  let prev2 = null;
   let prev = Array.from({ length: n + 1 }, (_, i) => i);
   for (let i = 1; i <= m; i++) {
     const cur = [i];
-    for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+      if (prev2 && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) cur[j] = Math.min(cur[j], prev2[j - 2] + 1);
+    }
+    prev2 = prev;
     prev = cur;
   }
   return prev[n];
+}
+
+// A doctor-supplied medicine list (TXT: one name per line; CSV: "name,generic").
+// Returns { items, skipped }. Names only — no patient data.
+export function parseMedicineList(text, { max = 50000 } = {}) {
+  const items = [];
+  const seen = new Set();
+  let skipped = 0;
+  for (const raw of String(text || "").replace(/^\uFEFF/, "").split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const cells = line.includes("\t") ? line.split("\t") : line.split(",");
+    const name = cells[0].replace(/^"|"$/g, "").trim();
+    const generic = (cells[1] || "").replace(/^"|"$/g, "").trim();
+    if (!/[a-z\u0900-\u097f]{2}/i.test(name) || name.length > 80) {
+      skipped++;
+      continue;
+    }
+    const key = normalizeName(name);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    items.push({ name, generic });
+    if (items.length >= max) break;
+  }
+  if (items.length && /^(name|brand|medicine|drug)$/i.test(items[0].name)) items.shift(); // header row
+  return { items, skipped };
 }
 
 export function buildCatalogue(extra = []) {
@@ -126,7 +160,7 @@ export function matchMedicine(written, catalogue) {
     if (hit) return { status: "partial", match: hit, suggestions: [], note: `starts with "${hit.name}" (${hit.generic}); also written: "${words.slice(n).join(" ")}" — check the exact product` };
   }
   const scored = cat
-    .map((e) => ({ e, d: lev(key, e.key) }))
+    .map((e) => ({ e, d: Math.abs(e.key.length - key.length) > 3 ? 99 : editDistance(key, e.key) }))
     .filter(({ e, d }) => d <= Math.max(1, Math.floor(Math.min(key.length, e.key.length) / 4)))
     .sort((a, b) => a.d - b.d)
     .slice(0, 3)

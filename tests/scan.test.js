@@ -376,3 +376,50 @@ test("schema 2 → 3 upgrade keeps clinical data and adds the scans store", asyn
   assert.equal(all.patients[0].name, "Old patient");
   a.close();
 });
+
+test("page edges are found automatically in a photo (or not guessed)", async () => {
+  const { detectPage } = await import("../js/ocr/geometry.js");
+  // 400×300 dark table with a bright, slightly rotated sheet, plus "ink" strokes.
+  const W = 400, Hh = 300;
+  const data = new Uint8ClampedArray(W * Hh * 4);
+  const sheet = [{ x: 80, y: 40 }, { x: 330, y: 60 }, { x: 310, y: 270 }, { x: 60, y: 250 }];
+  const inside = (x, y) => {
+    let c = false;
+    for (let i = 0, j = 3; i < 4; j = i++) {
+      const a = sheet[i], b = sheet[j];
+      if (a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) c = !c;
+    }
+    return c;
+  };
+  for (let y = 0; y < Hh; y++) for (let x = 0; x < W; x++) {
+    const o = (y * W + x) * 4;
+    const v = inside(x, y) ? ((y % 23 < 2 && x % 7 < 5) ? 40 : 235) : 60;
+    data[o] = data[o + 1] = data[o + 2] = v;
+    data[o + 3] = 255;
+  }
+  const q = detectPage({ data, width: W, height: Hh });
+  assert.ok(q, "page found");
+  q.forEach((p, i) => assert.ok(Math.hypot(p.x - sheet[i].x, p.y - sheet[i].y) < 12, `corner ${i} within 12 px (${Math.round(p.x)},${Math.round(p.y)})`));
+  // A photo that is all paper (no background) gives no guess.
+  const white = new Uint8ClampedArray(W * Hh * 4).fill(240);
+  assert.equal(detectPage({ data: white, width: W, height: Hh }), null);
+});
+
+test("swapped letters are suggested, imported lists extend the catalogue (suggestions only)", async () => {
+  const { matchMedicine, buildCatalogue, parseMedicineList, editDistance } = await import("../js/ocr/medicines.js");
+  assert.equal(editDistance("azitrhal", "azithral"), 1, "transposition counts once");
+  assert.deepEqual(matchMedicine("Tab Azitrhal 500").suggestions.map((s) => s.name), ["Azithral"]);
+  const { items, skipped } = parseMedicineList("name,generic\nNicip Plus,nimesulide + paracetamol\nCalpol 650,paracetamol\n----\nCalpol 650,dup\n");
+  assert.deepEqual(items.map((x) => x.name), ["Nicip Plus", "Calpol 650"]);
+  assert.equal(skipped, 1);
+  const cat = buildCatalogue(items);
+  assert.equal(matchMedicine("Nicip Plus", cat).status, "exact");
+  assert.equal(matchMedicine("Nicip Pls", cat).status, "similar");
+  // Through the store: the doctor's imported list is used when a scan is read.
+  const { store, patient } = await scanSetup();
+  await store.saveTemplate({ kind: "catalogue", name: "list", data: { items: [{ name: "Ascoril", generic: "bromhexine + guaifenesin + terbutaline" }] } });
+  const sc = await store.createScan({ patientId: patient.id, original: { bytes: JPG, name: "x.jpg" }, provider: "claude", result: { extraction: ex(feverRx), model: MODEL } });
+  const asc = sc.fields.find((f) => f.group === "md2" && f.key === "name");
+  assert.equal(asc.meta.catalogue.status, "exact");
+  assert.equal(asc.value, "Syp Ascoril", "written name unchanged");
+});

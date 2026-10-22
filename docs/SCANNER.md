@@ -6,7 +6,7 @@ Scan → read → review → approve → import. Paper prescriptions become stru
 
 1. **Capture.** From a consultation (*Scanned prescription → 📷 Scan / upload prescription*) or a patient profile (*📷 Scan prescription*), take a photo or upload a JPEG, PNG, WebP or PDF (max 15 MB). The file type is checked from the file's content, not its name.
 2. **Clean up** (images):
-   - Drag four corners to the paper's edges. This crops the photo and corrects perspective (a 4-point homography).
+   - The app finds the page edges automatically (Otsu threshold → largest bright region → its four corners). If it cannot find them confidently it says so and uses the whole photo instead of guessing. Drag the four corners to adjust them, or tap *Detect page edges* to try again. The corners crop the photo and correct perspective (a 4-point homography).
    - Rotate by 90°, or straighten by ±15°.
    - Adjust brightness and contrast, use greyscale, and optionally "sharpen ink" (adaptive threshold for shadows or faint pen).
 
@@ -65,10 +65,10 @@ vendor/anthropic-sdk.mjs  the official @anthropic-ai/sdk bundled for the browser
 **Medicine catalogue.** A starter set of about 160 common Indian brands, each mapped to its generic, plus about 110 generics, extended by the doctor's favourites and additions (*More → Clinical note & templates*). The result is one of:
 - `exact`: "In catalogue: Dolo = paracetamol";
 - `partial`: a variant such as "Augmentin Duo" — check the product;
-- `similar`: "Azithrol" → suggests Azithral, but is **not changed**;
+- `similar`: "Azithrol" or "Azitrhal" (swapped letters count as one slip) → suggests Azithral, but is **not changed**;
 - `none`: flagged for verification.
 
-It is a spelling check, not a drug database or a recommendation.
+It is a spelling check, not a drug database or a recommendation. Doctors can **import a medicine list** (*More → Clinical note & templates*): a TXT file with one name per line, or a CSV with `name,generic`. Duplicates are skipped and the doctor confirms before saving. Imported names only widen the catalogue used for suggestions; a written name is never replaced.
 
 ## Privacy and security
 
@@ -93,13 +93,13 @@ Backups are format 3; formats 1 and 2 still restore.
 
 ## Testing
 
-`tests/scan.test.js` (15 tests) uses `tests/fixtures/prescriptions.js`: synthetic reader outputs modelled on Indian OPD prescriptions.
+`tests/scan.test.js` (17 tests) uses `tests/fixtures/prescriptions.js`: synthetic reader outputs modelled on Indian OPD prescriptions.
 - **Fever:** cursive English with c/o, K/C/O DM and HTN, "? Viral fever", Dolo / Azithrol / Ascoril / Pan-D, 1-0-1, x 3d, 5/7, BBF, and a temperature written in °F.
 - **Hindi/English:** सुबह, खाने के बाद, 1 महीने, an illegible frequency, a Devanagari name.
 - **Unreadable photo.**
 - **Conflicting strengths** and a mismatched patient name.
 
-The tests cover validation, catalogue matching, abbreviations, flags, every approval rule, import with no fee and no prescription, append-only import, patient confirmation, manual entry, access control, encrypted key and backup, the reader's request shape and error handling, perspective geometry, written-date parsing, and the schema 2 → 3 upgrade.
+The tests cover validation, catalogue matching, abbreviations, flags, every approval rule, import with no fee and no prescription, append-only import, patient confirmation, manual entry, access control, encrypted key and backup, the reader's request shape and error handling, perspective geometry, automatic page-edge detection (including refusing to guess on a blank image), transposition-aware suggestions, medicine-list import, written-date parsing, and the schema 2 → 3 upgrade.
 
 `tests/e2e/scan.test.js` runs the whole flow in Chromium at phone size. The Anthropic endpoint is intercepted, so it verifies that the bundled SDK sends the right model, headers and image, with no patient data. It then checks:
 - an uncertain drug name cannot be approved until typed;
@@ -114,4 +114,13 @@ The tests cover validation, catalogue matching, abbreviations, flags, every appr
 ANTHROPIC_API_KEY=sk-ant-... npm run ocr:eval -- path/to/folder   # image + same-name .json ground truth
 ```
 
-It reports per-field accuracy and **confident errors**: wrong values that were read as clear with high confidence, which the app would not flag. Until that number is zero on a representative sample (cursive writing, abbreviations, brand names, Hindi), keep reviewing every field against the image. That is the workflow's default anyway.
+It reports per-field accuracy, character error rate (CER, so near-misses count partly), and **confident errors**: wrong values that were read as clear with high confidence, which the app would not flag. Until that number is zero on a representative sample (cursive writing, abbreviations, brand names, Hindi), keep reviewing every field against the image. That is the workflow's default anyway.
+
+## Credits
+
+Some ideas were adapted from [Aniket025/Medical-Prescription-OCR](https://github.com/Aniket025/Medical-Prescription-OCR):
+- finding the page by its largest region and taking its corners from x+y and x−y;
+- edit-distance (SymSpell-style) checking against a medicine vocabulary;
+- measuring CER.
+
+They were re-implemented here, and no code or word lists were copied: that repository has no license. One idea was deliberately not adopted: replacing a word automatically with its nearest dictionary match. In a prescription that could silently change a drug, so here a match is only ever a suggestion.

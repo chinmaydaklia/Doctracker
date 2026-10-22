@@ -56,8 +56,18 @@ export function renderScan(app, params) {
   // ---- clean-up editor: rotation, 4 corners (crop + perspective), contrast
   const stepEnhance = async () => {
     const P = await import("../ocr/preprocess.js");
+    const G = await import("../ocr/geometry.js");
     clear(body);
     const stage = h("div", { class: "crop-stage" });
+    const detectNote = h("p", { class: "small muted" });
+    let autoTried = false;
+    const autoDetect = (canvas) => {
+      const { detectPage } = G;
+      const img = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height);
+      const q = detectPage(img);
+      detectNote.textContent = q ? "Page edges detected automatically — drag the corners if they are not right." : "Could not find the page edges automatically — drag the corners to the paper's edges.";
+      return q;
+    };
     const preview = h("div", { class: "enh-preview" });
     let base, scale, corners;
     const draw = () => {
@@ -67,6 +77,10 @@ export function renderScan(app, params) {
       scale = W / base.width;
       const view = h("canvas", { class: "crop-canvas", width: Math.round(base.width * scale), height: Math.round(base.height * scale) });
       view.getContext("2d").drawImage(base, 0, 0, view.width, view.height);
+      if (!st.ops.quad && !autoTried) {
+        autoTried = true;
+        st.ops.quad = autoDetect(base);
+      }
       if (!st.ops.quad) {
         const m = 0.02;
         st.ops.quad = [{ x: base.width * m, y: base.height * m }, { x: base.width * (1 - m), y: base.height * m }, { x: base.width * (1 - m), y: base.height * (1 - m) }, { x: base.width * m, y: base.height * (1 - m) }];
@@ -119,6 +133,7 @@ export function renderScan(app, params) {
     const rot = (d) => {
       st.ops.rotation = (st.ops.rotation + d + 360) % 360;
       st.ops.quad = null;
+      autoTried = false;
       draw();
     };
     const slider = (label, key, min, max) => {
@@ -139,11 +154,12 @@ export function renderScan(app, params) {
     add(
       body,
       h("p", { class: "small muted" }, "Drag the four corners to the edges of the prescription. This crops it and straightens a tilted photo."),
+      detectNote,
       stage,
       h(
         "div",
         { class: "card" },
-        h("div", { class: "row-btns wrap" }, h("button", { class: "btn small", onclick: () => rot(-90) }, "⟲ Rotate left"), h("button", { class: "btn small", onclick: () => rot(90) }, "⟳ Rotate right"), h("button", { class: "btn small", onclick: () => { st.ops.quad = null; draw(); } }, "Reset corners")),
+        h("div", { class: "row-btns wrap" }, h("button", { class: "btn small", onclick: () => rot(-90) }, "⟲ Rotate left"), h("button", { class: "btn small", onclick: () => rot(90) }, "⟳ Rotate right"), h("button", { class: "btn small", onclick: () => { st.ops.quad = null; autoTried = true; detectNote.textContent = ""; draw(); } }, "Reset corners"), h("button", { class: "btn small", onclick: () => { st.ops.quad = autoDetect(P.rotatedCanvas(st.bitmap, st.ops.rotation, st.ops.fine)); autoTried = true; draw(); } }, "Detect page edges")),
         slider("Straighten (°)", "fine", -15, 15),
         slider("Brightness", "brightness", -60, 60),
         slider("Contrast", "contrast", -40, 80),

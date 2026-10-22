@@ -12,7 +12,8 @@
 // Every image is sent to the Anthropic API (billed to the key). Use anonymised or
 // consented images only. Nothing is written to the app's database.
 //
-// Reported per field: accuracy, and the dangerous case — a WRONG value the reader
+// Reported per field: exact-match accuracy, character error rate (CER: how far off the
+// readings are, so near-misses count partly), and the dangerous case — a WRONG value the reader
 // marked clear with confidence >= 0.8 ("confident errors"), which the app would not flag.
 
 import { readFile, readdir } from "node:fs/promises";
@@ -28,11 +29,21 @@ if (!dir || !process.env.ANTHROPIC_API_KEY) {
 const MIME = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".pdf": "application/pdf" };
 const norm = (s) => String(s || "").toLowerCase().replace(/\s+/g, " ").replace(/[.,;:]$/, "").trim();
 const client = new Anthropic();
+// Character error rate: edits needed to turn the reading into the truth, per character.
+function cer(got, want) {
+  const a = norm(got), b = norm(want);
+  if (!b) return a ? 1 : 0;
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return Math.min(1, d[a.length][b.length] / b.length);
+}
 const stats = {};
 const tally = (field, expected, reading) => {
-  const t = (stats[field] ||= { n: 0, correct: 0, flagged: 0, confidentWrong: 0, missed: 0 });
+  const t = (stats[field] ||= { n: 0, correct: 0, flagged: 0, confidentWrong: 0, missed: 0, cer: 0 });
   if (!norm(expected) && !reading?.text) return;
   t.n++;
+  t.cer += cer(reading?.text, expected);
   const flagged = !reading || reading.legibility !== "clear" || reading.confidence < 0.8 || (reading.alternatives || []).length > 0;
   if (reading && norm(reading.text) === norm(expected)) t.correct++;
   else if (!reading || !reading.text) t.missed++;
@@ -59,8 +70,8 @@ for (const f of files) {
     console.log(`  ✗ ${f}: ${e.message}`);
   }
 }
-console.log("\nField               n   correct  flagged  missed  CONFIDENT ERRORS");
+console.log("\nField               n   correct    CER  flagged  missed  CONFIDENT ERRORS");
 for (const [k, t] of Object.entries(stats)) {
-  console.log(`${k.padEnd(18)} ${String(t.n).padStart(3)}   ${String(Math.round((100 * t.correct) / Math.max(1, t.n))).padStart(5)}%  ${String(t.flagged).padStart(7)}  ${String(t.missed).padStart(6)}  ${String(t.confidentWrong).padStart(6)}`);
+  console.log(`${k.padEnd(18)} ${String(t.n).padStart(3)}   ${String(Math.round((100 * t.correct) / Math.max(1, t.n))).padStart(5)}%  ${String(Math.round((100 * t.cer) / Math.max(1, t.n))).padStart(4)}%  ${String(t.flagged).padStart(7)}  ${String(t.missed).padStart(6)}  ${String(t.confidentWrong).padStart(6)}`);
 }
 console.log("\nConfident errors are wrong values the app would show as clear — any non-zero count there means: keep reviewing every field against the image.");
