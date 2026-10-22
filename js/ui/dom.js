@@ -131,8 +131,13 @@ export async function attempt(fn) {
 
 // ----------------------------------------------------------------- controls
 
+// A <label> wraps only a single form control. Composite controls (button groups,
+// stepper, date + text) go in a <div>: a tap inside a <label> is re-sent by the
+// browser to the label's first control, which would reset a button group to its
+// first option.
 export function field(labelKey, control, hint) {
-  return h("label", { class: "field" }, h("span", { class: "lbl" }, typeof labelKey === "string" ? L(labelKey) : labelKey), control, hint ? h("small", { class: "hint" }, hint) : null);
+  const single = control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLTextAreaElement;
+  return h(single ? "label" : "div", { class: "field", role: single ? null : "group" }, h("span", { class: "lbl" }, typeof labelKey === "string" ? L(labelKey) : labelKey), control, hint ? h("small", { class: "hint" }, hint) : null);
 }
 
 export function moneyInput({ value = null, placeholder = "0", oninput, allowNegative = false, id } = {}) {

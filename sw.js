@@ -2,7 +2,7 @@
    works with no network. Same-origin requests are served from cache first and
    refreshed in the background; bump VERSION on every release. No data is cached
    here — records live in IndexedDB. */
-const VERSION = "doctracker-v2.0.0";
+const VERSION = "doctracker-v2.0.1";
 const SHELL = [
   "./",
   "./index.html",
