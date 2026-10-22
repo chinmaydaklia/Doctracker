@@ -4,7 +4,8 @@ import { setHindi } from "../i18n.js";
 import { today, fmtDateTime } from "../dates.js";
 import { ARRANGEMENTS, LOCATION_KINDS, DATA_STORES } from "../model.js";
 import { agreementFor } from "../calc.js";
-import { buildBackup, verifyBackup, restoreBackup, markBackedUp, restoreSnapshot } from "../backup.js";
+import { buildBackup, verifyBackup, restoreBackup, markBackedUp, restoreSnapshot, listSnapshots } from "../backup.js";
+import { DEFAULT_REQUIRED } from "../clinical.js";
 import { readLegacyLocalStorage, convertLegacy } from "../legacy.js";
 import { seedExampleLocations, seedDemo } from "../demo.js";
 import { describeAgreement } from "./money.js";
@@ -13,25 +14,31 @@ export function renderMore(app) {
   const store = app.store;
   const s = store.settings;
   const name = h("input", { type: "text", value: s.userName || "Doctor" });
-  const item = (title, sub, go) => h("button", { class: "choice", onclick: go }, h("b", null, title), h("span", null, sub));
+  const item = (title, sub, go, perm) => (perm && !store.perms.includes(perm) ? null : h("button", { class: "choice", onclick: go }, h("b", null, title), h("span", null, sub)));
   return h(
     "div",
     { class: "screen" },
     h("h1", null, "More"),
-    item("Locations & fees", `${store.data.locations.filter((l) => l.active).length} active locations · fee history`, () => app.go("locations")),
-    item("Hospitals & agreements", "Salary, revenue share, minimum guarantee, settlement periods", () => app.go("money", { tab: "hospitals" })),
-    item("Backup & restore", backupLine(store), () => app.go("backup")),
-    item("Audit log", "Every change: who, when, why", () => app.go("audit")),
-    item("Import from old tracker", "Bring in entries from the earlier version of this app", () => app.go("importOld")),
+    app.migration && !s.upgradeNoticeSeen && store.perms.includes("backup")
+      ? h("div", { class: "card warn" }, h("b", null, "App upgraded with clinical records."), h("p", { class: "small" }, "Your financial records were not changed, and a copy of them from before the upgrade is kept on this device. Make a fresh backup now."), h("button", { class: "btn primary small", onclick: () => store.saveSettings({ upgradeNoticeSeen: true }).then(() => app.go("backup")) }, "Back up now"))
+      : null,
+    store.authEnabled
+      ? item("Security & users", store.session ? `Signed in as ${store.session.name} · accounts, auto-lock, access log` : "", () => app.go("users"))
+      : item("Set up clinical records & sign-in", "Patient notes, vitals, diagnoses, prescriptions — encrypted on this device, with doctor / receptionist / staff accounts", () => app.go("security"), "users"),
+    item("Clinical note & templates", "Note layout (standard or SOAP), required documentation, saved templates and favourites", () => app.go("clinicalSettings"), "clinical.write"),
+    item("Locations & fees", `${store.data.locations.filter((l) => l.active).length} active locations · fee history`, () => app.go("locations"), "finance.admin"),
+    item("Hospitals & agreements", "Salary, revenue share, minimum guarantee, settlement periods", () => app.go("money", { tab: "hospitals" }), "finance.admin"),
+    item("Backup & restore", backupLine(store), () => app.go("backup"), "backup"),
+    item("Audit log", "Every financial change: who, when, why", () => app.go("audit"), "backup"),
+    item("Import from old tracker", "Bring in entries from the earlier version of this app", () => app.go("importOld"), "finance.admin"),
     h(
       "div",
       { class: "card" },
       h("h3", null, "Preferences"),
-      field("Your name (recorded in the audit log)", name),
-      h("button", { class: "btn small", onclick: () => attempt(() => store.saveSettings({ userName: name.value.trim() || "Doctor" })).then(() => toast("Saved ✓")) }, "Save name"),
+      store.authEnabled ? null : [field("Your name (recorded in the audit log)", name), h("button", { class: "btn small", onclick: () => attempt(() => store.saveSettings({ userName: name.value.trim() || "Doctor" })).then(() => toast("Saved ✓")) }, "Save name")],
       h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!s.showHindi, onchange: async (e) => { await store.saveSettings({ showHindi: e.target.checked }); setHindi(e.target.checked); location.reload(); } }), " Show Hindi labels (हिंदी)"),
     ),
-    h(
+    store.authEnabled && !store.perms.includes("backup") ? null : h(
       "div",
       { class: "card" },
       h("h3", null, app.mode === "demo" ? "Demo mode (separate database)" : "Demo data"),
@@ -271,7 +278,7 @@ export function renderBackup(app) {
 
   const doBackup = async () => {
     try {
-      const backup = await buildBackup(store.data, { demo: app.mode === "demo" });
+      const backup = await buildBackup(store, { demo: app.mode === "demo" });
       const text = JSON.stringify(backup);
       // Verify the exact bytes being saved before calling it a backup.
       const v = await verifyBackup(JSON.parse(text));
@@ -315,17 +322,23 @@ export function renderBackup(app) {
       const v = await verifyBackup(obj);
       if (!v.ok) return show("bad", [h("b", null, "This file cannot be restored:"), h("ul", null, v.errors.map((e) => h("li", null, e)))]);
       if (v.demo && app.mode === "real" && !(await confirmDialog("Demo backup", "This backup contains DEMO data. Restore it into your real records anyway?", { danger: true, ok: "Restore demo data" }))) return;
-      const ok = await confirmDialog("Replace all data?", `Restore the backup from ${fmtDateTime(v.exportedAt)}?\n\nIt contains ${countsLine(v.counts)}.\n\nEverything currently on this device (${countsLine(counts)}) will be replaced. A safety copy of the current data is kept on this device.`, { ok: "Replace and restore", danger: true });
+      const oldFormat = v.format < 2 && (store.data.patients.length || store.authEnabled) ? "\n\n⚠ This is an older backup WITHOUT clinical records or accounts. Restoring it removes all patients, clinical records and sign-in accounts from this device (they stay in the safety copy)." : "";
+      const ok = await confirmDialog("Replace all data?", `Restore the backup from ${fmtDateTime(v.exportedAt)}?\n\nIt contains ${countsLine(v.counts)}.\n\nEverything currently on this device (${countsLine(counts)}) will be replaced. A safety copy of the current data is kept on this device.${oldFormat}\n\nAfter restoring, sign in with an account from the backup.`, { ok: "Replace and restore", danger: true });
       if (!ok) return;
       await restoreBackup(store, obj);
-      toast("Restored ✓");
+      toast("Restored ✓ — sign in again");
+      await app.lock();
       app.go("home");
     } catch (e) {
       show("bad", ["Restore failed: ", e.message]);
     }
   };
 
-  const snaps = [...store.data.snapshots].sort((a, b) => b.at - a.at);
+  const snapBox = h("div");
+  listSnapshots(store).then((snaps) => {
+    if (!snaps.length) return;
+    add(snapBox, h("div", { class: "card" }, h("h3", null, "Safety copies on this device"), h("p", { class: "small muted" }, "Made automatically before each restore and before the database upgrade."), snaps.map((s) => h("div", { class: "row" }, h("div", null, fmtDateTime(s.at), " · ", s.reason), h("button", { class: "btn small", onclick: async () => { if ((await confirmDialog("Restore safety copy", "Replace current data with this safety copy? (The current data is saved as another safety copy first.)", { danger: true, ok: "Restore" })) && (await attempt(() => restoreSnapshot(store, s.id).then(() => true)))) { await app.lock(); app.go("home"); } } }, "Restore")))));
+  });
   return h(
     "div",
     { class: "screen" },
@@ -339,19 +352,19 @@ export function renderBackup(app) {
       h("div", { class: "kv" }, h("span", null, "Status"), h("b", null, !b.lastBackupAt ? "⚠ never backed up" : b.lastChangeAt > b.lastBackupAt ? "⚠ changes not backed up" : "✓ up to date")),
       h("p", { class: "small" }, countsLine(counts)),
       h("p", { class: "small muted" }, "Data is stored only in this browser on this device. It is not synchronised to other devices. To move to another device, back up here and restore there."),
+      store.authEnabled ? h("p", { class: "small muted" }, "Clinical records and attachments stay encrypted inside the backup file; they can only be opened with a doctor's password or the recovery code from this practice.") : null,
       h("button", { class: "btn primary big", onclick: doBackup }, "⬇ Back up now (full data)"),
     ),
     out,
     h("div", { class: "card" }, h("h3", null, "Verify a backup file"), h("p", { class: "small muted" }, "Checks the checksum, record counts and every relationship, without changing anything."), fileInput(verifyFile)),
     h("div", { class: "card" }, h("h3", null, "Restore from backup"), h("p", { class: "small muted" }, "Replaces all data on this device after verification and confirmation."), fileInput(restoreFile)),
-    snaps.length
-      ? h("div", { class: "card" }, h("h3", null, "Safety copies (made before each restore)"), snaps.map((s) => h("div", { class: "row" }, h("div", null, fmtDateTime(s.at), " · ", s.reason), h("button", { class: "btn small", onclick: async () => { if ((await confirmDialog("Restore safety copy", "Replace current data with this safety copy?", { danger: true, ok: "Restore" })) && (await attempt(() => restoreSnapshot(store, s.id).then(() => true)))) app.go("home"); } }, "Restore"))))
-      : null,
+    snapBox,
   );
 }
 
 function countsLine(c) {
-  return `${c.sessions || 0} sessions, ${c.visits || 0} visits, ${c.payments || 0} payments, ${c.locations || 0} locations, ${c.settlements || 0} settlements, ${c.audit || 0} audit entries`;
+  const clin = c.patients || c.encounters ? `, ${c.patients || 0} patients, ${c.encounters || 0} consultations, ${c.files || 0} attachments (encrypted)` : "";
+  return `${c.sessions || 0} sessions, ${c.visits || 0} visits, ${c.payments || 0} payments, ${c.locations || 0} locations, ${c.settlements || 0} settlements${clin}, ${c.audit || 0} audit entries`;
 }
 
 // -------------------------------------------------------------------- audit
@@ -425,5 +438,41 @@ export function renderImportOld(app) {
       }
     } })),
     out,
+  );
+}
+
+// ------------------------------------------------------- clinical settings
+
+const SECTION_LABELS = { complaints: "Chief complaints", history: "History", comorbidities: "Comorbidities", allergies: "Allergies", currentMeds: "Current medications (reported)", vitals: "Vitals", exam: "Examination", investigations: "Investigations", diagnoses: "Assessment & diagnosis", treatment: "Treatment / prescription", advice: "Advice", followUp: "Follow-up" };
+const KIND_LABELS = { exam: "Examination templates", prescription: "Prescription templates", medicine: "Medicine favourites" };
+
+export function renderClinicalSettings(app) {
+  const store = app.store;
+  const existing = store.data.templates.find((t) => t.kind === "note");
+  const cur = store.noteTemplate;
+  const st = { style: cur.style, sections: { ...cur.sections }, required: { ...DEFAULT_REQUIRED, ...(existing?.data.required || {}) } };
+  const header = h("textarea", { rows: 3, value: cur.header || "", placeholder: "e.g. Dr. Name, MBBS, MD (Medicine) · Reg. No. … · Clinic address · Phone" });
+  const save = () => attempt(() => store.saveTemplate({ id: existing?.id, kind: "note", name: "Note layout", data: { style: st.style, header: header.value, sections: st.sections, required: st.required } })).then((t) => t && toast("Saved ✓"));
+  const lists = Object.entries(KIND_LABELS).map(([kind, label]) => {
+    const ts = store.data.templates.filter((t) => t.kind === kind);
+    return h("div", { class: "card" }, h("h3", null, label), ts.length ? ts.map((t) => h("div", { class: "row" }, h("span", { class: "grow" }, t.name), h("button", { class: "link small", onclick: async () => { if (await confirmDialog("Delete template", t.name, { danger: true, ok: "Delete" })) attempt(() => store.deleteTemplate(t.id)).then(() => app.render()); } }, "delete"))) : h("p", { class: "small muted" }, "None yet — save them from a consultation."));
+  });
+  return h(
+    "div",
+    { class: "screen" },
+    h("h1", null, "Clinical note & templates"),
+    h(
+      "div",
+      { class: "card" },
+      h("h3", null, "Consultation note layout"),
+      field("Style", segmented([{ value: "standard", label: "Standard sections" }, { value: "soap", label: "SOAP (S / O / A / P)" }], st.style, (v) => (st.style = v))),
+      field("Letterhead (printed at the top)", header),
+      h("div", { class: "grid2" }, Object.entries(SECTION_LABELS).map(([k, label]) => h("label", { class: "check small" }, h("input", { type: "checkbox", checked: st.sections[k] !== false, onchange: (e) => (st.sections[k] = e.target.checked) }), " ", label))),
+      h("h3", null, "Required documentation"),
+      h("p", { class: "small muted" }, "Consultations missing these are listed on the home screen. Nothing blocks you from saving."),
+      h("div", { class: "grid2" }, [["complaint", "Chief complaint"], ["vitals", "Vitals"], ["exam", "Examination"], ["diagnosis", "Diagnosis"]].map(([k, label]) => h("label", { class: "check small" }, h("input", { type: "checkbox", checked: !!st.required[k], onchange: (e) => (st.required[k] = e.target.checked) }), " ", label))),
+      h("button", { class: "btn primary", onclick: save }, "Save"),
+    ),
+    lists,
   );
 }

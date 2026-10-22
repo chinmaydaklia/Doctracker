@@ -8,6 +8,7 @@ import { dailyReport, monthlyReport, paymentReport } from "../js/reports.js";
 import { buildBackup, verifyBackup, restoreBackup } from "../js/backup.js";
 import { openIndexedDB, memoryAdapter } from "../js/db.js";
 import { Store } from "../js/store.js";
+import "../js/clinical-store.js";
 
 const D1 = "2026-03-10";
 const D2 = "2026-03-11";
@@ -265,7 +266,7 @@ test("13. Export and restore preserve every record and relationship", async () =
   await store.saveAgreement({ payerId: hosp.id, effectiveFrom: "2026-01-01", type: "pct", pctBp: 3000, base: "gross" });
   const st = await store.saveSettlement({ payerId: hosp.id, periodStart: "2026-03-01", periodEnd: "2026-03-31" });
   await store.recordHospitalPayment({ settlementId: st.id, date: "2026-04-05", method: "bank", amountPaise: R(450) });
-  const backup = await buildBackup(store.data);
+  const backup = await buildBackup(store);
   const json = JSON.stringify(backup);
   const check = await verifyBackup(JSON.parse(json));
   assert.equal(check.ok, true, check.errors.join("; "));

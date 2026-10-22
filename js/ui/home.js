@@ -13,16 +13,62 @@ function bars(rows, valueKey, fmt) {
   return h("div", { class: "bars" }, rows.map((r) => h("div", { class: "bar-row" }, h("span", { class: "bar-name" }, r.name), h("span", { class: "bar" }, h("i", { style: { width: Math.round((100 * r[valueKey]) / max) + "%" } })), h("b", null, fmt(r[valueKey])))));
 }
 
+// Clinical metrics. Counts come from clear metadata (any role); "missing documentation"
+// needs the decrypted content (doctor).
+function clinicalPanel(app, t) {
+  const store = app.store;
+  if (!store.authEnabled) {
+    return store.perms.includes("users") && store.data.locations.length
+      ? h("div", { class: "card click", onclick: () => app.go("security") }, h("b", null, "＋ Add clinical patient records"), h("div", { class: "muted small" }, "Patient profiles, consultations, vitals, diagnoses, reports and prescriptions — encrypted on this device, linked to your visits without changing any fees."))
+      : null;
+  }
+  const c = store.clinicalMetrics(t);
+  const name = (pid) => store.get("patients", pid)?.name || pid;
+  const open = (e) => () => app.go(store.can("clinical.read") || store.perms.includes("vitals") ? "encounter" : "patient", store.can("clinical.read") || store.perms.includes("vitals") ? { id: e.id } : { id: e.patientId });
+  return [
+    h("h3", { class: "sec" }, "Clinical"),
+    h(
+      "div",
+      { class: "tiles" },
+      tile("Signed today", String(c.signedToday), `${c.signedMonth} this month`, "rev"),
+      tile("Pending notes", String(c.pending.length), "drafts and amendments", c.pending.length ? "due" : ""),
+      tile("Follow-ups due", String(c.due.length), "within 7 days", "", () => app.go("patients")),
+      c.missing ? tile("Missing documentation", String(c.missing.length), "this month", c.missing.length ? "due bad" : "") : null,
+      store.perms.includes("finance") ? tile("Visits without clinical record", String(c.visitsNoRecord.length), "today, linked patients", c.visitsNoRecord.length ? "due" : "") : null,
+    ),
+    c.pending.length ? h("details", { class: "card" }, h("summary", null, "Pending notes"), c.pending.slice(0, 20).map((e) => h("button", { class: "row click", onclick: open(e) }, h("div", null, h("b", null, name(e.patientId)), h("div", { class: "small muted" }, date(e.date), " · ", store.locationName(e.locationId))), badge(e.status === "amending" ? "amending" : "draft", "warn")))) : null,
+    c.missing && c.missing.length ? h("details", { class: "card" }, h("summary", null, "Missing documentation"), c.missing.slice(0, 20).map((x) => h("button", { class: "row click", onclick: open(x.encounter) }, h("div", null, h("b", null, name(x.encounter.patientId)), h("div", { class: "small muted" }, date(x.encounter.date))), h("span", { class: "small badc" }, x.missing.join(", "))))) : null,
+  ];
+}
+
 export function renderHome(app) {
   const t = today();
-  const d = dashboard(app.store, t);
+  const store = app.store;
+  const perms = store.perms;
+  const clinicalQuick = store.can("clinical.write") ? h("button", { class: "btn primary big", onclick: () => app.go("newEncounter") }, "+ Consultation") : null;
+  if (!perms.includes("finance")) {
+    return h("div", { class: "screen" }, h("h1", null, L("today"), " · ", date(t)), h("div", { class: "quick" }, h("button", { class: "btn big", onclick: () => app.go("patients") }, "Patients"), clinicalQuick), clinicalPanel(app, t));
+  }
+  const d = dashboard(store, t);
   const m = fmtMonth(t.slice(0, 7));
   const quick = h(
     "div",
     { class: "quick" },
-    h("button", { class: "btn primary big", onclick: () => app.go("summary") }, "+ ", L("quickSummary")),
+    clinicalQuick,
+    h("button", { class: "btn " + (clinicalQuick ? "" : "primary ") + "big", onclick: () => app.go("summary") }, "+ ", L("quickSummary")),
     h("button", { class: "btn big", onclick: () => app.go("visit") }, "+ ", L("individualEntry")),
   );
+  if (!perms.includes("reports")) {
+    // Front desk: today's work and patient balances; no income figures.
+    return h(
+      "div",
+      { class: "screen" },
+      h("h1", null, L("today"), " · ", date(t)),
+      quick,
+      h("div", { class: "tiles" }, tile(L("patients") + " today", String(d.actToday.visits), `${d.actToday.newCount} new · ${d.actToday.followupCount} follow-up`), tile("Collected today", money(d.colToday.patient), methodLine(d.colToday), "col"), tile("Patient balances", money(d.receivable), "unpaid fees", "due", () => app.go("money", { tab: "due" }))),
+      clinicalPanel(app, t),
+    );
+  }
 
   const recon = d.needsRecon.length
     ? h("div", { class: "card warn click", onclick: () => app.go("sessions", { filter: "recon" }) }, h("b", null, `⚠ ${d.needsRecon.length} session${d.needsRecon.length > 1 ? "s need" : " needs"} reconciliation`), h("div", { class: "muted" }, "Summary and individual records differ or are not yet reviewed. Tap to review."))
@@ -35,6 +81,7 @@ export function renderHome(app) {
     h("h1", null, L("today"), " · ", date(t)),
     quick,
     recon,
+    clinicalPanel(app, t),
     h("h3", { class: "sec" }, "Patients"),
     h(
       "div",

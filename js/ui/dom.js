@@ -12,6 +12,7 @@ export function h(tag, attrs, ...children) {
       else if (k === "style" && typeof v === "object") Object.assign(el.style, v);
       else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
       else if (k === "dataset") Object.assign(el.dataset, v);
+      else if (k === "value") el.value = v; // property, so <textarea> and <select> show it too
       else if (k in el && k !== "list" && typeof v !== "string") el[k] = v;
       else el.setAttribute(k, v === true ? "" : v);
     }
