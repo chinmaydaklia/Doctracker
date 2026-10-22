@@ -3,7 +3,8 @@
 // them in ONE IndexedDB transaction; memory is updated only after the write succeeds.
 // Financial records are never hard-deleted: they are voided, reversed or corrected.
 
-import { STORES, DATA_STORES, METHODS, AGREEMENT_TYPES, REVENUE_BASES, FREQUENCIES, ARRANGEMENTS } from "./model.js";
+import { STORES, DATA_STORES, LAZY_STORES, CLINICAL_STORES, CLINICAL_META, PERMISSIONS, OWNER_PERMISSIONS, METHODS, AGREEMENT_TYPES, REVENUE_BASES, FREQUENCIES, ARRANGEMENTS } from "./model.js";
+import { sealJSON, openJSON } from "./crypto.js";
 import { newId, newSessionId, newVisitId } from "./ids.js";
 import { isIsoDate, today } from "./dates.js";
 import { isPaise, sum, fmtINR } from "./money.js";
@@ -16,6 +17,43 @@ export class ValidationError extends Error {
   }
 }
 
+export class PermissionError extends Error {
+  constructor(msg) {
+    super(msg);
+    this.name = "PermissionError";
+  }
+}
+
+// Which permission a write to each store needs. Checked centrally in commit(), so no
+// operation (UI or otherwise) can bypass it.
+const WRITE_PERMISSION = {
+  locations: "finance.admin",
+  rates: "finance.admin",
+  payers: "finance.admin",
+  agreements: "finance.admin",
+  settlements: "finance.admin",
+  sessions: "finance",
+  visits: "finance",
+  payments: "finance",
+  allocations: "finance",
+  adjustments: "finance",
+  patients: "patients",
+  profiles: "clinical.write",
+  conditions: "clinical.write",
+  allergies: "clinical.write",
+  medications: "clinical.write",
+  encounters: "clinical.write",
+  diagnoses: "clinical.write",
+  prescriptions: "clinical.write",
+  noteVersions: "clinical.sign",
+  templates: "clinical.write",
+  vitals: "vitals",
+  investigations: "investigations",
+  files: "investigations",
+  blobs: "investigations",
+  users: "users",
+};
+
 function req(cond, msg) {
   if (!cond) throw new ValidationError(msg);
 }
@@ -24,10 +62,11 @@ const clean = (s) => (s === undefined || s === null ? "" : String(s).trim());
 
 // Patient identifiers are kept out of the audit log.
 const PII = ["patientName", "patientId"];
-function redact(obj) {
+const PATIENT_PII = ["name", "nameHi", "mobile", "address", "emergencyContact", "dob", "externalIds"];
+function redact(obj, entity) {
   if (!obj) return obj;
   const o = structuredClone(obj);
-  for (const k of PII) if (o[k]) o[k] = "[redacted]";
+  for (const k of entity === "patient" ? [...PII, ...PATIENT_PII] : PII) if (o[k]) o[k] = "[redacted]";
   return o;
 }
 
@@ -38,6 +77,9 @@ export class Store {
     this.data = Object.fromEntries(STORES.map((s) => [s, []]));
     this._ledger = null;
     this._listeners = new Set();
+    this.session = null; // { userId, name, role, perms } once someone signs in
+    this.dek = null; // clinical data key, only while a clinical user is signed in
+    this._sealed = Object.fromEntries(CLINICAL_STORES.map((s) => [s, []]));
   }
 
   static async open(adapter, opts) {
@@ -48,7 +90,70 @@ export class Store {
 
   async reload() {
     const all = await this.adapter.loadAll();
-    for (const s of STORES) this.data[s] = all[s] || [];
+    for (const s of STORES) {
+      if (LAZY_STORES.includes(s)) continue;
+      if (CLINICAL_STORES.includes(s)) this._sealed[s] = all[s] || [];
+      else this.data[s] = all[s] || [];
+    }
+    await this._openClinical();
+    this._ledger = null;
+    this._emit();
+  }
+
+  // With the key: decrypt every clinical record into memory. Without it: keep only the
+  // clear metadata (links, dates, status), so counts work but no content is readable.
+  async _openClinical() {
+    for (const s of CLINICAL_STORES) {
+      const sealed = this._sealed[s];
+      if (!this.dek) {
+        this.data[s] = sealed.map((r) => metaOf(s, r));
+        continue;
+      }
+      const out = [];
+      for (const r of sealed) {
+        try {
+          out.push({ ...(await openJSON(this.dek, r.enc)), id: r.id });
+        } catch {
+          out.push({ ...metaOf(s, r), _unreadable: true });
+        }
+      }
+      this.data[s] = out;
+    }
+  }
+
+  get authEnabled() {
+    return this.data.users.some((u) => u.active !== false);
+  }
+
+  get perms() {
+    if (this.session) return this.session.perms;
+    return this.authEnabled ? [] : OWNER_PERMISSIONS;
+  }
+
+  can(perm) {
+    return this.perms.includes(perm) && (!perm.startsWith("clinical") || !!this.dek || perm === "clinical.audit");
+  }
+
+  requirePerm(perm) {
+    if (!this.perms.includes(perm)) throw new PermissionError(`Your account (${this.session ? this.session.role : "not signed in"}) is not allowed to do this.`);
+    if ((perm.startsWith("clinical") || perm === "vitals" || perm === "investigations") && !this.dek) throw new PermissionError("Clinical records are locked. Sign in with a clinical account.");
+  }
+
+  // Start a signed-in session. `dek` only for users that hold a wrapped key.
+  async startSession(user, dek) {
+    const base = PERMISSIONS[user.role] || [];
+    const perms = user.role === "staff" && !user.canClinical ? base.filter((p) => p === "patients") : base;
+    this.session = { userId: user.id, name: user.name, role: user.role, perms, at: this.clock() };
+    this.dek = dek || null;
+    await this._openClinical();
+    this._ledger = null;
+    this._emit();
+  }
+
+  async endSession() {
+    this.session = null;
+    this.dek = null;
+    await this._openClinical(); // drops decrypted content from memory
     this._ledger = null;
     this._emit();
   }
@@ -77,6 +182,7 @@ export class Store {
     return this.get("meta", "backup") || { id: "backup", lastBackupAt: null, lastChangeAt: null, lastVerifiedAt: null };
   }
   get user() {
+    if (this.session) return `${this.session.name} (${this.session.role})`;
     return this.settings.userName || "Doctor";
   }
 
@@ -96,8 +202,14 @@ export class Store {
     }
   }
 
-  async commit(ops, audits = [], { dataChange = true } = {}) {
+  async commit(ops, audits = [], { dataChange = true, raw = false } = {}) {
     const now = this.clock();
+    if (!raw) {
+      for (const o of ops) {
+        if (!o.clear && WRITE_PERMISSION[o.store]) this.requirePerm(WRITE_PERMISSION[o.store]);
+        if (o.store === "meta" && o.put && o.put.id === "keys") this.requirePerm("users");
+      }
+    }
     const all = [...ops];
     for (const a of audits) {
       all.push({
@@ -110,16 +222,48 @@ export class Store {
           entity: a.entity,
           entityId: a.entityId,
           reason: a.reason || "",
-          before: redact(a.before) || null,
-          after: redact(a.after) || null,
+          before: redact(a.before, a.entity) || null,
+          after: redact(a.after, a.entity) || null,
         },
       });
     }
     if (dataChange) all.push({ store: "meta", put: { ...this.backupMeta, lastChangeAt: now } });
-    await this.adapter.write(all);
-    this._apply(all);
+    // Clinical records are encrypted on their way to disk; memory keeps the plain copy.
+    const disk = [];
+    for (const o of all) {
+      if (!raw && o.put && CLINICAL_STORES.includes(o.store)) {
+        if (!this.dek) throw new PermissionError("Clinical records are locked.");
+        const sealed = { ...metaOf(o.store, o.put), enc: await sealJSON(this.dek, o.put) };
+        disk.push({ store: o.store, put: sealed });
+        o.sealed = sealed;
+      } else disk.push(o);
+    }
+    await this.adapter.write(disk);
+    for (const o of all) {
+      if (!CLINICAL_STORES.includes(o.store)) continue;
+      const arr = this._sealed[o.store];
+      if (o.clear) arr.length = 0;
+      else if (o.put) {
+        const rec = raw ? o.put : o.sealed;
+        const i = arr.findIndex((r) => r.id === rec.id);
+        if (i >= 0) arr[i] = rec;
+        else arr.push(rec);
+      }
+    }
+    this._apply(all.filter((o) => !LAZY_STORES.includes(o.store) && !(raw && CLINICAL_STORES.includes(o.store))));
+    if (raw) await this._openClinical();
     this._ledger = null;
     this._emit();
+  }
+
+  // Records exactly as stored on disk (clinical stores encrypted) — for backups.
+  diskData() {
+    const out = {};
+    for (const s of STORES) {
+      if (LAZY_STORES.includes(s)) continue;
+      out[s] = CLINICAL_STORES.includes(s) ? this._sealed[s] : this.data[s];
+    }
+    return out;
   }
 
   async saveSettings(patch) {
@@ -441,7 +585,16 @@ export class Store {
     }
   }
 
-  async addVisit(input, { allowDuplicate = false } = {}) {
+  async addVisit(input, opts = {}) {
+    const r = this._visitOps(input, opts);
+    if (r.needsConfirm) return r;
+    await this.commit(r.ops, r.audits);
+    return { visit: r.visit, session: this.get("sessions", r.session.id) };
+  }
+
+  // Builds (but does not commit) the writes for a new visit, so that other operations
+  // (e.g. a clinical encounter with billing) can commit them in the same transaction.
+  _visitOps(input, { allowDuplicate = false } = {}) {
     const ops = [];
     const audits = [];
     const now = this.clock();
@@ -469,6 +622,7 @@ export class Store {
       req(isIsoDate(pd) && pd >= s.date, "Payment date cannot be before the consultation date.");
     }
     const patientId = clean(input.patientId);
+    if (input.patientRecordId) req(this.get("patients", input.patientRecordId), "Unknown patient record.");
     if (patientId && !allowDuplicate) {
       const dups = this.data.visits.filter((v) => !v.voided && v.sessionId === s.id && v.patientId && v.patientId.toLowerCase() === patientId.toLowerCase());
       if (dups.length) return { needsConfirm: true, duplicates: dups };
@@ -481,6 +635,7 @@ export class Store {
       locationId: s.locationId,
       patientId,
       patientName: clean(input.patientName),
+      patientRecordId: input.patientRecordId || null,
       category: cat.key,
       categoryLabel: cat.label,
       isVisit: cat.isVisit !== false,
@@ -509,8 +664,17 @@ export class Store {
       audits.push({ action: "create", entity: "payment", entityId: p.id, after: p });
     }
     this._touchSession(s, ops, audits, now);
-    await this.commit(ops, audits);
-    return { visit: v, session: this.get("sessions", s.id) };
+    return { ops, audits, visit: v, session: s };
+  }
+
+  // Link a financial visit to a patient master record. Changes no money.
+  async linkVisitToPatient(visitId, patientRecordId) {
+    const before = this.get("visits", visitId);
+    req(before && !before.voided, "Unknown visit.");
+    if (patientRecordId) req(this.get("patients", patientRecordId), "Unknown patient record.");
+    const after = { ...before, patientRecordId: patientRecordId || null, updatedAt: this.clock() };
+    await this.commit([{ store: "visits", put: after }], [{ action: patientRecordId ? "link-patient" : "unlink-patient", entity: "visit", entityId: visitId, before, after }]);
+    return after;
   }
 
   async updateVisit(id, patch, reason) {
@@ -847,13 +1011,15 @@ export class Store {
   }
 
   // Replace every store (restore). Caller validates the backup first.
+  // Replace every store (restore). Caller validates the backup first. Records are
+  // written exactly as in the backup (clinical ones stay encrypted).
   async replaceAll(stores, auditEntry) {
     const ops = [];
     for (const s of DATA_STORES) {
       ops.push({ store: s, clear: true });
       for (const r of stores[s] || []) ops.push({ store: s, put: r });
     }
-    await this.commit(ops, auditEntry ? [auditEntry] : [], { dataChange: false });
+    await this.commit(ops, auditEntry ? [auditEntry] : [], { dataChange: false, raw: true });
   }
 
   // Bulk insert of already-built records (old-tracker import, demo data).
@@ -873,4 +1039,10 @@ export class Store {
   }
 }
 
-export { mapBy };
+export function metaOf(store, rec) {
+  const m = { id: rec.id };
+  for (const k of ["createdAt", "updatedAt", ...(CLINICAL_META[store] || [])]) if (rec[k] !== undefined) m[k] = rec[k];
+  return m;
+}
+
+export { mapBy, req, clean };

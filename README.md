@@ -10,7 +10,9 @@ A consultation and income tracker for a consultant physician who works across se
 
 You can enter a whole OPD as a quick summary ("18 new, 9 follow-ups, ₹4,200 cash"), enter patients one by one, or do both and reconcile them.
 
-Design, database schema, calculation rules and test plan: [docs/DESIGN.md](docs/DESIGN.md).
+**Clinical records (optional):** patient profiles, consultations (complaints, vitals, examination, diagnoses, investigations with report uploads, prescriptions, advice, follow-up), signed and amendable consultation notes, and a longitudinal timeline per patient. They are encrypted on the device, with doctor / receptionist / staff accounts. They are linked to visits but never create or change fees.
+
+Design, database schema, calculation rules and test plan: [docs/DESIGN.md](docs/DESIGN.md). Clinical upgrade (migration, schema, security): [docs/CLINICAL.md](docs/CLINICAL.md).
 
 ## Using it
 
@@ -18,9 +20,12 @@ Design, database schema, calculation rules and test plan: [docs/DESIGN.md](docs/
 2. For each hospital, set its **agreement** under **Money → Hospitals** (salary, %, minimum guarantee, which revenue it applies to, settlement frequency).
 3. Daily: **Add → Quick session summary** or **Individual patient entry**.
 4. Monthly: **Money → Hospitals → New settlement period**. Check the calculation, enter the hospital's figure if your agreement uses one, finalise, and record the payment when it arrives.
-5. **Back up** regularly (**More → Backup & restore**). The header warns when there are changes that are not backed up yet. Keep the backup file **off the phone** (Google Drive, email to yourself, a computer).
+5. Clinical records: **More → Set up clinical records & sign-in**. Create your doctor account and write down the recovery code on paper. Then add receptionist or staff accounts under **More → Security & users**. Use **Patients** to register patients and **+ Consultation** to document a visit.
+6. **Back up** regularly (**More → Backup & restore**). The header warns when there are changes that are not backed up yet. Keep the backup file **off the phone** (Google Drive, email to yourself, a computer).
 
-> **Your data is stored only in this browser on this device.** It is not synchronised. To move to another phone, back up on the old one and restore on the new one. Clearing the browser's site data deletes it, so keep backups.
+> **Your data is stored only in this browser on this device.** It is not synchronised. To move to another phone, back up on the old one and restore on the new one. Clearing the browser's site data deletes it, so keep backups. Clinical records stay encrypted inside backups. Without the doctor password **or** the recovery code they cannot be opened by anyone, including you.
+
+**Upgrading from the previous version:** nothing to do. On first start the app keeps a copy of your existing records on the device, adds the new storage, and asks you to make a fresh backup. Your financial data and reports are unchanged.
 
 Suggestion: run it alongside your current register for at least two weeks before relying on it for monthly income.
 
@@ -48,6 +53,7 @@ The app is plain ES modules. Open `index.html` through any static web server. Se
 2. In the repository: **Settings → Pages → Build and deployment → Deploy from a branch → `main` / root**.
 3. The app is served at `https://<user>.github.io/doctracker/`. All paths are relative, so any static host or sub-folder works (Netlify, Cloudflare Pages, your own server). HTTPS is required for installation and offline use.
 4. On each release, bump `VERSION` in `sw.js` so installed apps fetch the new files.
+5. Serve over HTTPS only (GitHub Pages does). The page's Content-Security-Policy allows no third-party scripts.
 
 The previous single-page tracker is kept as [`legacy.html`](legacy.html). Its data (browser localStorage on the same site) is untouched and can be imported from **More → Import from old tracker**.
 
@@ -62,5 +68,7 @@ The previous single-page tracker is kept as [`legacy.html`](legacy.html). Its da
 | `js/backup.js` | Full export with checksum, verification, restore with safety copy |
 | `js/legacy.js` | Import from the old tracker |
 | `js/demo.js` | Example locations and demo data (separate demo database) |
+| `js/clinical.js`, `js/clinical-store.js` | Clinical rules and operations (patients, encounters, vitals, diagnoses, investigations, prescriptions, sign-off) |
+| `js/crypto.js`, `js/auth.js` | Encryption of clinical data, accounts, roles, recovery |
 | `js/ui/` | Screens |
-| `tests/` | `required.test.js` (the 14 acceptance tests), `units.test.js`, `e2e/` |
+| `tests/` | `required.test.js` (the 14 acceptance tests), `units.test.js`, `clinical.test.js`, `e2e/` |

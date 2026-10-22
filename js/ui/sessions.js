@@ -304,6 +304,7 @@ function visitDialog(app, v, s) {
     h("p", { class: "muted small" }, v.id),
     h("div", { class: "kv" }, h("span", null, "Type"), h("b", null, v.categoryLabel)),
     v.patientId || v.patientName ? h("div", { class: "kv" }, h("span", null, "Patient"), h("b", null, [v.patientId, v.patientName].filter(Boolean).join(" · "))) : null,
+    clinicalLinks(app, v, go),
     h("div", { class: "kv" }, h("span", null, "Fee"), h("b", null, money(v.feePaise), v.feePaise !== v.standardFeePaise ? h("small", null, ` (standard ${money(v.standardFeePaise)}: ${v.overrideReason})`) : null)),
     adjs.map((a) => h("div", { class: "kv" }, h("span", null, a.type[0].toUpperCase() + a.type.slice(1), ": ", a.reason), h("b", null, a.type === "correction" ? money(a.amountPaise, { sign: true }) : a.type === "cancellation" ? "" : "−" + money(a.amountPaise)))),
     h("div", { class: "kv total" }, h("span", null, "Net fee"), h("b", null, money(vf.net))),
@@ -342,3 +343,39 @@ function visitDialog(app, v, s) {
 }
 
 export { confirmDialog, select };
+
+// Patient record and clinical record for a financial visit. Linking changes no money.
+function clinicalLinks(app, v, go) {
+  const store = app.store;
+  if (!store.perms.includes("patients")) return null;
+  const p = v.patientRecordId && store.get("patients", v.patientRecordId);
+  const enc = store.encounterForVisit(v.id);
+  return h(
+    "div",
+    { class: "card soft" },
+    p ? h("div", { class: "kv" }, h("span", null, "Patient record"), h("button", { class: "link", onclick: go(() => app.go("patient", { id: p.id })) }, p.name, " · ", p.id)) : h("p", { class: "small muted" }, "Not linked to a registered patient."),
+    enc ? h("div", { class: "kv" }, h("span", null, "Clinical record"), store.can("clinical.read") ? h("button", { class: "link", onclick: go(() => app.go("encounter", { id: enc.id })) }, enc.status === "finalized" ? "signed ✓ open" : "draft — open") : h("b", null, enc.status === "finalized" ? "signed" : "in progress")) : null,
+    h(
+      "div",
+      { class: "row-btns wrap" },
+      !p && !v.voided ? h("button", { class: "btn small", onclick: go(() => linkPatientDialog(app, v)) }, "Link to patient") : null,
+      !enc && store.can("clinical.write") && !v.cancelled ? h("button", { class: "btn small primary", onclick: go(() => app.go("newEncounter", { visitId: v.id, patientId: v.patientRecordId })) }, "Write clinical note") : null,
+    ),
+  );
+}
+
+async function linkPatientDialog(app, v) {
+  const store = app.store;
+  const { searchPatients, ageLabel } = await import("../clinical.js");
+  const q = h("input", { type: "search", placeholder: "Search name, mobile, patient ID", value: v.patientName || v.patientId || "" });
+  const res = h("div");
+  const run = () => {
+    while (res.firstChild) res.removeChild(res.firstChild);
+    for (const x of searchPatients(store.data.patients, q.value).slice(0, 8)) {
+      res.append(h("button", { class: "row click", onclick: async () => { if (await attempt(() => store.linkVisitToPatient(v.id, x.id).then(() => true))) { document.querySelector(".modal-back")?.remove(); toast("Linked ✓ (no change to fees)"); app.render(); } } }, h("div", null, h("b", null, x.name), h("div", { class: "small muted" }, ageLabel(x), " · ", x.id))));
+    }
+  };
+  q.addEventListener("input", run);
+  run();
+  return modal("Link visit to patient", [q, res, h("button", { class: "btn small", onclick: () => { document.querySelector(".modal-back")?.remove(); app.go("patientForm", { name: v.patientName || "" }); } }, "+ Register new patient")], [{ label: "Close", result: false }]);
+}

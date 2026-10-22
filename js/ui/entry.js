@@ -5,6 +5,7 @@ import { today } from "../dates.js";
 import { rateFor } from "../calc.js";
 import { METHODS, SESSION_NAMES } from "../model.js";
 import { sum } from "../money.js";
+import { ageLabel, searchPatients } from "../clinical.js";
 
 export function renderAdd(app) {
   const recent = [...app.store.data.sessions].filter((s) => !s.voided).sort((a, b) => b.createdAt - a.createdAt).slice(0, 5);
@@ -250,9 +251,25 @@ export function renderVisitForm(app, params) {
   const store = app.store;
   const fixed = params.sessionId ? store.get("sessions", params.sessionId) : null;
   const st = fixed ? { date: fixed.date, locationId: fixed.locationId, sessionName: fixed.sessionName, collector: fixed.collector } : initialContext(app);
-  const form = { category: "new", payState: "full", method: "cash" };
+  const form = { category: "new", payState: "full", method: "cash", patientRecordId: params.patientRecordId || null };
   const root = h("div", { class: "screen", dataset: { dirty: "0" } });
   const savedInfo = h("div");
+  // Optional link to a registered patient (identity lives in the patient record).
+  const recBox = h("div", { class: "card" });
+  const drawRec = () => {
+    clear(recBox);
+    if (!store.perms.includes("patients")) return recBox.classList.add("hide");
+    const p = form.patientRecordId && store.get("patients", form.patientRecordId);
+    if (p) return add(recBox, h("div", { class: "kv" }, h("span", null, "Patient record: ", h("b", null, p.name), " · ", ageLabel(p), " · ", p.id), h("button", { type: "button", class: "link small", onclick: () => { form.patientRecordId = null; drawRec(); } }, "remove")));
+    const q = h("input", { type: "search", placeholder: "Find registered patient (optional)", autocomplete: "off" });
+    const res = h("div");
+    q.addEventListener("input", () => {
+      clear(res);
+      if (q.value.trim().length < 2) return;
+      for (const x of searchPatients(store.data.patients, q.value).slice(0, 6)) add(res, h("button", { type: "button", class: "row click", onclick: () => { form.patientRecordId = x.id; if (!pname.value) pname.value = ""; drawRec(); } }, h("div", null, h("b", null, x.name), h("div", { class: "small muted" }, ageLabel(x), " · ", x.id))));
+    });
+    add(recBox, field("Registered patient", q), res);
+  };
   const pid = h("input", { type: "text", autocomplete: "off", placeholder: "e.g. OPD no. / UHID" });
   const pname = h("input", { type: "text", autocomplete: "off" });
   const typeBox = h("div");
@@ -337,6 +354,7 @@ export function renderVisitForm(app, params) {
       sessionName: st.sessionName,
       collector: st.collector,
       patientId: pid.value,
+      patientRecordId: form.patientRecordId,
       patientName: pname.value,
       category: form.category,
       feePaise: fee(),
@@ -361,11 +379,14 @@ export function renderVisitForm(app, params) {
     const f = store.ledger.sessionFin.get(res.session.id);
     toast(`Visit saved ✓ (${f.individual.visits} in this session)`);
     if (!next) return app.go("session", { id: res.session.id }, { replace: true });
+    const linkedPatient = form.patientRecordId;
+    form.patientRecordId = null;
+    drawRec();
     pid.value = pname.value = remarks.value = refIn.value = overrideReason.value = discReason.value = "";
     discIn.setPaise(0);
     amtIn.setPaise(0);
     feeIn.setPaise(stdFee());
-    add(clear(savedInfo), h("div", { class: "card ok" }, `Saved ${res.visit.id}. `, h("b", null, `${f.individual.visits} visits · ${money(f.individual.net)}`), " recorded in this session. ", h("button", { class: "link", onclick: () => app.go("session", { id: res.session.id }) }, "Open session")));
+    add(clear(savedInfo), h("div", { class: "card ok" }, `Saved ${res.visit.id}. `, h("b", null, `${f.individual.visits} visits · ${money(f.individual.net)}`), " recorded in this session. ", h("button", { class: "link", onclick: () => app.go("session", { id: res.session.id }) }, "Open session"), linkedPatient && store.can("clinical.write") ? h("button", { class: "link", onclick: () => app.go("newEncounter", { visitId: res.visit.id }) }, "Write clinical note") : null));
     recalc();
     root.dataset.dirty = "0";
     pid.focus();
@@ -381,6 +402,7 @@ export function renderVisitForm(app, params) {
           recalc();
         }),
     savedInfo,
+    recBox,
     h("div", { class: "card" }, h("div", { class: "grid2" }, field("patientId", pid), field("patientName", pname)), h("small", { class: "hint" }, "Optional. No diagnosis, address or medical history is needed.")),
     typeBox,
     h("div", { class: "card" }, h("div", { class: "grid2" }, field("fee", feeIn), field("Discount / waiver ₹", discIn)), overrideBox, discBox),
@@ -392,6 +414,7 @@ export function renderVisitForm(app, params) {
   );
   loadRate();
   drawPay();
+  drawRec();
   recalc();
   root.dataset.dirty = "0";
   return root;

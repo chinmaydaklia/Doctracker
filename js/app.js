@@ -1,6 +1,8 @@
-// App bootstrap: storage, router, header status, service worker.
+// App bootstrap: storage, sign-in gate, router, header status, auto-lock, service worker.
 import { Store } from "./store.js";
+import "./clinical-store.js";
 import { openIndexedDB, memoryAdapter, REAL_DB, DEMO_DB } from "./db.js";
+import { signOut } from "./auth.js";
 import { h, add, clear, toast } from "./ui/dom.js";
 import { L, setHindi } from "./i18n.js";
 import { fmtDateTime } from "./dates.js";
@@ -8,12 +10,13 @@ import { screens } from "./ui/screens.js";
 
 const MODE_KEY = "dt_mode";
 const TABS = [
-  ["home", "home", "⌂"],
-  ["add", "add", "+"],
-  ["sessions", "sessions", "☰"],
-  ["money", "money", "₹"],
-  ["reports", "reports", "▤"],
-  ["more", "more", "⋯"],
+  ["home", "home", "⌂", null],
+  ["patients", "patients", "♥", "patients"],
+  ["add", "add", "+", "finance"],
+  ["sessions", "sessions", "☰", "finance"],
+  ["money", "money", "₹", "finance"],
+  ["reports", "reports", "▤", "reports"],
+  ["more", "more", "⋯", null],
 ];
 
 function getMode() {
@@ -30,9 +33,19 @@ export const app = {
   persistent: false,
   current: { name: "home", params: {} },
   stack: [],
+  lastActivity: Date.now(),
+
+  allowed(name) {
+    const scr = screens[name];
+    return scr && (!scr.perm || this.store.perms.includes(scr.perm));
+  },
 
   go(name, params = {}, { replace = false } = {}) {
     if (!screens[name]) name = "home";
+    if (!this.allowed(name)) {
+      toast("Your account cannot open that screen.", "err");
+      name = "home";
+    }
     if (!replace && this.current.name !== name) this.stack.push(this.current);
     if (screens[name].tab) this.stack = [];
     this.current = { name, params };
@@ -52,19 +65,37 @@ export const app = {
 
   render() {
     const main = document.getElementById("main");
-    const scr = screens[this.current.name];
     clear(main);
+    const gated = this.store.authEnabled && !this.store.session;
+    document.body.classList.toggle("locked", gated);
+    this.renderNav();
+    if (gated) {
+      add(main, screens.login.render(this, {}));
+      this.renderStatus();
+      return;
+    }
+    if (!this.allowed(this.current.name)) this.current = { name: "home", params: {} };
+    const scr = screens[this.current.name];
     try {
       add(main, scr.render(this, this.current.params || {}));
     } catch (e) {
       console.error(e);
       add(main, h("div", { class: "card err" }, "Something went wrong showing this screen: " + e.message));
     }
-    const tab = scr.tab || scr.parent || "home";
+    const tab = scr.tab ? this.current.name : scr.parent || "home";
     document.querySelectorAll("#nav button").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
-    main.scrollTop = 0;
     window.scrollTo(0, 0);
     this.renderStatus();
+  },
+
+  renderNav() {
+    const nav = document.getElementById("nav");
+    clear(nav);
+    if (this.store.authEnabled && !this.store.session) return;
+    for (const [name, key, icon, perm] of TABS) {
+      if (perm && !this.store.perms.includes(perm)) continue;
+      add(nav, h("button", { type: "button", dataset: { tab: name }, onclick: () => app.go(name) }, h("span", { class: "ic", "aria-hidden": "true" }, icon), L(key)));
+    }
   },
 
   async switchMode(mode) {
@@ -75,24 +106,44 @@ export const app = {
     location.reload();
   },
 
+  // Lock: forget the signed-in user and the decrypted clinical data.
+  async lock(reason) {
+    if (!this.store.session) return;
+    await signOut(this.store);
+    this.stack = [];
+    this.current = { name: "home", params: {} };
+    this.render();
+    if (reason) toast(reason);
+  },
+
   renderStatus() {
     const el = document.getElementById("status");
     if (!el || !this.store) return;
     clear(el);
-    const bm = this.store.backupMeta;
-    const saved = this.store.adapter.kind === "indexeddb";
-    add(el, 
-      h("span", { class: "chip " + (saved ? "ok" : "bad"), title: saved ? "Every entry is written to this device's database before 'Saved' is shown" : "Storage unavailable: data will be lost when this tab closes" }, saved ? "● Saved on this device" : "⚠ NOT SAVED (no storage)"),
-    );
-    let bk;
-    if (!bm.lastBackupAt) bk = h("span", { class: "chip warn", onclick: () => this.go("backup") }, "⚠ Never backed up");
-    else if (bm.lastChangeAt && bm.lastChangeAt > bm.lastBackupAt) {
-      const days = Math.floor((Date.now() - bm.lastBackupAt) / 864e5);
-      bk = h("span", { class: "chip " + (days >= 3 ? "warn" : "mid"), onclick: () => this.go("backup"), title: "Last backup " + fmtDateTime(bm.lastBackupAt) }, days >= 1 ? `Backup ${days}d old` : "Changes since backup");
-    } else bk = h("span", { class: "chip ok", onclick: () => this.go("backup") }, "✓ Backed up");
-    add(el, bk, h("span", { class: "chip mid", title: "Data lives only on this device. It is not synchronised between devices." }, "Local only"));
+    const st = this.store;
+    const bm = st.backupMeta;
+    const saved = st.adapter.kind === "indexeddb";
+    add(el, h("span", { class: "chip " + (saved ? "ok" : "bad"), title: saved ? "Every entry is written to this device's database before 'Saved' is shown" : "Storage unavailable: data will be lost when this tab closes" }, saved ? "● Saved on this device" : "⚠ NOT SAVED (no storage)"));
+    if (!st.authEnabled || st.perms.includes("backup")) {
+      let bk;
+      if (!bm.lastBackupAt) bk = h("span", { class: "chip warn", onclick: () => this.go("backup") }, "⚠ Never backed up");
+      else if (bm.lastChangeAt && bm.lastChangeAt > bm.lastBackupAt) {
+        const days = Math.floor((Date.now() - bm.lastBackupAt) / 864e5);
+        bk = h("span", { class: "chip " + (days >= 3 ? "warn" : "mid"), onclick: () => this.go("backup"), title: "Last backup " + fmtDateTime(bm.lastBackupAt) }, days >= 1 ? `Backup ${days}d old` : "Changes since backup");
+      } else bk = h("span", { class: "chip ok", onclick: () => this.go("backup") }, "✓ Backed up");
+      add(el, bk);
+    }
+    add(el, h("span", { class: "chip mid", title: "Data lives only on this device. It is not synchronised between devices." }, "Local only"));
+    if (st.session) {
+      add(el, h("span", { class: "chip mid", title: st.dek ? "Clinical records unlocked (encrypted on disk)" : "No access to clinical records" }, (st.dek ? "🔓 " : "") + st.session.name), h("button", { class: "chip lockbtn", onclick: () => this.lock("Locked.") }, "Lock"));
+    }
   },
 };
+
+const IDLE_CHECK_MS = 20000;
+function lockMinutes() {
+  return Number(app.store.settings.lockMinutes) || 10;
+}
 
 async function boot() {
   app.mode = getMode();
@@ -106,6 +157,7 @@ async function boot() {
     setTimeout(() => toast("This browser blocked local storage (private mode?). Entries will NOT be kept.", "err"), 500);
   }
   app.store = await Store.open(adapter);
+  if (adapter.migration) app.migration = adapter.migration;
   setHindi(app.store.settings.showHindi);
   app.store.onChange(() => app.renderStatus());
 
@@ -115,20 +167,14 @@ async function boot() {
     } catch {}
   }
 
-  const nav = document.getElementById("nav");
-  for (const [name, key, icon] of TABS) {
-    add(nav, h("button", { type: "button", dataset: { tab: name }, onclick: () => app.go(name) }, h("span", { class: "ic", "aria-hidden": "true" }, icon), L(key)));
-  }
   if (app.mode === "demo") {
-    add(document.getElementById("banner"), 
-      h("div", { class: "demo-banner" }, "DEMO DATA — not your real records. ", h("button", { class: "link", onclick: () => app.switchMode("real") }, "Switch to my records")),
-    );
+    add(document.getElementById("banner"), h("div", { class: "demo-banner" }, "DEMO DATA — not your real records. ", h("button", { class: "link", onclick: () => app.switchMode("real") }, "Switch to my records")));
   }
   window.addEventListener("popstate", () => {
     const name = location.hash.slice(1) || "home";
     if (app.stack.length && app.stack[app.stack.length - 1].name === name) app.back();
     else {
-      app.current = { name: screens[name] ? name : "home", params: {} };
+      app.current = { name: screens[name] && !screens[name].needsParams ? name : "home", params: {} };
       app.render();
     }
   });
@@ -139,7 +185,18 @@ async function boot() {
     }
   });
 
-  const first = !app.store.data.locations.length;
+  // Auto-lock after inactivity, and when the app has been in the background too long.
+  for (const ev of ["pointerdown", "keydown", "touchstart", "scroll"]) window.addEventListener(ev, () => (app.lastActivity = Date.now()), { passive: true });
+  let hiddenAt = null;
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) hiddenAt = Date.now();
+    else if (hiddenAt && Date.now() - hiddenAt > lockMinutes() * 60000) app.lock("Locked after inactivity.");
+  });
+  setInterval(() => {
+    if (app.store.session && Date.now() - app.lastActivity > lockMinutes() * 60000) app.lock("Locked after inactivity.");
+  }, IDLE_CHECK_MS);
+
+  const first = !app.store.data.locations.length && !app.store.authEnabled;
   const start = location.hash.slice(1);
   app.current = { name: first ? "welcome" : screens[start] && !screens[start].needsParams ? start : "home", params: {} };
   history.replaceState(null, "", "#" + app.current.name);

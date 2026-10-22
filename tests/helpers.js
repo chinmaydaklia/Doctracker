@@ -1,4 +1,5 @@
 import { Store } from "../js/store.js";
+import "../js/clinical-store.js";
 import { memoryAdapter } from "../js/db.js";
 import { defaultCategories } from "../js/model.js";
 
